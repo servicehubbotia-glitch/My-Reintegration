@@ -107,7 +107,7 @@ cloud.onStatus(event=>{
  accessUI();
 });
 $('#connect').onclick=async()=>{try{state=validate(await cloud.connect());render();toast(cloud.role==='reader'?'Connected with read-only access.':'Connected to your Google Sheet.')}catch(e){state=empty();render();toast(e.message)}};
-$('#signout').onclick=()=>{cloud.disconnect();state=empty();document.querySelectorAll('dialog[open]').forEach(d=>d.close());render();toast('Signed out. Pending changes remain protected by your Google account in this browser.');};
+$('#signout').onclick=()=>{cloud.disconnect();state=empty();document.querySelectorAll('dialog[open]').forEach(d=>d.close());render();toast('Signed out. Pending changes remain in this browser for this account.');};
 async function refreshCloud(){try{state=validate(await cloud.refresh());render()}catch(e){$('#syncStatus').textContent='Connection error';toast(e.message)}}
 $('#refresh').onclick=refreshCloud;
 $('#retry').onclick=async()=>{try{state=validate(await cloud.retry());$('#editor').close();render();toast('Pending changes confirmed in Google Sheets.')}catch(e){toast(e.message)}};
