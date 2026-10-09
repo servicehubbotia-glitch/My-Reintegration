@@ -14,7 +14,7 @@ Existing `my-reintegration-v1` records are never deleted. Settings includes a le
 
 ## Implementation
 
-Vanilla HTML, CSS and JavaScript; no build step or analytics. Public OAuth/deployment IDs are in `google-config.js`; no client secret or tokens are stored in the repository. Tokens are memory-only. Apps Script uses identity checks, private sharing checks, revision conflicts, locks, atomic writes, request receipts and explicit cell string values.
+Vanilla HTML, CSS and JavaScript; no build step or analytics. Public OAuth/deployment IDs are in `google-config.js`; no client secret or tokens are stored in the repository. Owner OAuth tokens stay in memory. The separate guest view offers opt-in remembered access in the reader's browser; it reauthorizes with the server on every visit/read/export and forgets the credential on sign-out or rejection. Apps Script uses identity checks, private sharing checks, revision conflicts, locks, atomic writes, request receipts and explicit cell string values.
 
 See [Apps Script setup](apps-script/SETUP.md) for deployment, scopes and remaining live checks. Google Sheets edits made directly outside the app do not participate in the script lock.
 

@@ -2,7 +2,7 @@
 
 [hidden]{display:none!important}.sync-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:24px;color:var(--muted);font-size:12px}.sync-bar button{font-size:11px;min-height:34px;padding:7px 10px}#syncStatus[data-status="Connection error"]{color:#954d2d}button:disabled{opacity:.5;cursor:default}@media(max-width:650px){.sync-bar{align-items:flex-start;flex-direction:column}}
 
-.guest-view #settings,.guest-view #accessManager,.guest-view #editor,.guest-view #preferences,.guest-view #reportDialog h3,.guest-view #reportDialog label,.guest-view #reportDialog .small,.guest-view #email,.guest-view #eml{display:none!important}</style></head><body>
+.guest-view #settings,.guest-view #accessManager,.guest-view #editor,.guest-view #preferences,.guest-view #reportDialog h3,.guest-view #reportDialog label,.guest-view #reportDialog .small,.guest-view #email,.guest-view #eml{display:none!important}.remember-access{display:flex;align-items:center;gap:10px}.remember-access input{width:20px;min-height:20px;margin:0;accent-color:var(--green)}</style></head><body>
 <header><a class="brand" href="./"><span class="brandmark">M<span>R</span></span> My Reintegration</a><button id="settings">Settings & backup</button></header>
 <main><div class="sync-bar"><span id="syncStatus" role="status" aria-live="polite">Sign in to Google</span><div class="actions"><button id="connect">Connect Google</button><button id="refresh" hidden>Refresh</button><button id="signout" hidden>Sign out</button><button id="retry" hidden>Retry pending save</button><button id="pendingBackup" hidden>Export pending backup</button><button id="resolvePending" hidden>Review conflict</button></div></div><div class="intro"><div><p class="eyebrow">YOUR PERSONAL WORK JOURNAL</p><h1>A clearer view of your week.</h1><p class="muted">Record your activities, keep track of applications, and share your progress.</p></div><button class="primary" id="report">Weekly report ↗</button></div>
 <section class="week-panel"><div class="week-top"><div><p class="eyebrow">WEEK OVERVIEW</p><h2 id="weekTitle"></h2></div><div class="actions"><button id="prev" aria-label="Previous week">←</button><button id="today">This week</button><button id="next" aria-label="Next week">→</button><label class="jump">Go to date<input type="date" id="jump"></label></div></div><div id="days" class="days"></div></section>
@@ -13,27 +13,39 @@
 <dialog id="editor"><form id="editForm"><div class="dialog-head"><h2 id="editTitle"></h2><button type="button" data-close="editor" aria-label="Close editor">✕</button></div><div id="fields" class="form-grid"></div><p class="muted small" id="draftStatus">Draft changes are saved locally as you type.</p><div class="dialog-actions"><button type="button" id="discard">Discard draft</button><button class="primary" type="submit">Save record</button></div></form></dialog>
 <dialog id="preferences"><form id="settingsForm"><div class="dialog-head"><h2>Settings & backup</h2><button type="button" data-close="preferences" aria-label="Close settings">✕</button></div><label>Weekly goal (hours)<input name="goal" type="number" min="0.25" max="168" step="0.25" required></label><label>Report recipient<input name="recipient" type="email" placeholder="Enter recipient email"></label><label>Your name (optional)<input name="name" maxlength="200"></label><p class="muted small">Settings and records are saved to your authorized Google Sheet. JSON backups contain personal records: keep them private.</p><button class="primary" type="submit">Save settings</button><hr><button type="button" id="privateAccess" hidden>Manage private read-only access</button><hr><h3>Your data, your copy</h3><div class="actions"><button type="button" id="backup">Export JSON backup</button><label class="file-button">Import JSON backup<input id="import" type="file" accept="application/json,.json"></label><button type="button" id="legacyBackup">Export original local backup</button><button type="button" id="migrate" hidden>Migrate local records to Google</button></div><p class="small muted">Import merges records and preserves existing entries. Conflicting IDs are copied with a new ID. Existing settings are preserved. A backup is downloaded first.</p></form></dialog>
 <dialog id="reportDialog"><div class="dialog-head"><div><p class="eyebrow">READY TO SHARE</p><h2>Weekly report</h2></div><button data-close="reportDialog" aria-label="Close report">✕</button></div><p id="reportRange" class="muted"></p><div class="actions"><button id="copy">Copy report</button><button id="pdf">Download PDF</button><button id="csv">Export CSV</button><button id="excel">Download Excel</button></div><pre id="reportText"></pre><h3>Prepare your email</h3><label>To<input id="emailTo" type="email"></label><label>Subject<input id="emailSubject"></label><label>Message<textarea id="emailBody" rows="10"></textarea></label><div class="actions"><button class="primary" id="email">Open email app</button><button id="eml">Download email draft</button></div><p class="small muted">Review and send in your email app. Files are not attached automatically. For long reports, use the downloadable email draft or attach the PDF.</p></dialog>
-<dialog id="accessManager"><div class="dialog-head"><h2>Private read-only access</h2><button data-close="accessManager" aria-label="Close access manager">✕</button></div><p>Anyone holding the token can read all journal records and download reports until it expires or you revoke it. Share it privately with the intended reader. No Google account is required.</p><form id="accessCreate"><label>Expires in (days)<input id="accessDays" type="number" min="1" max="365" value="30" required></label><button class="primary">Generate access token</button></form><p id="accessError" role="status"></p><section id="issuedAccess" hidden><p>Copy this token now. It is displayed once and is never stored. Closing this dialog clears it.</p><label>Access token<textarea id="issuedToken" readonly autocomplete="off" spellcheck="false"></textarea></label></section><div id="accessList"></div><p>Renewal: revoke the old access, then generate a new token. Revocation blocks future reads and exports; reports already downloaded cannot be withdrawn.</p></dialog><div id="toast" role="status" aria-live="polite"></div><dialog id="guestLogin"><form id="guestLoginForm"><h2>Private read-only access</h2><label>Access token<input type="password" id="accessToken" autocomplete="off" spellcheck="false" required maxlength="43" minlength="43"></label><p>Ask the journal owner for your access token. It will stay in memory only for this session.</p><button class="primary">Open journal</button><button type="button" data-close="guestLogin">Cancel</button></form></dialog><script>// HTMLService transport: bearer credential stays in this closure, never a URL or storage.
+<dialog id="accessManager"><div class="dialog-head"><h2>Private read-only access</h2><button data-close="accessManager" aria-label="Close access manager">✕</button></div><p>Anyone holding the token can read all journal records and download reports until it expires or you revoke it. Share it privately with the intended reader. No Google account is required.</p><form id="accessCreate"><label>Expires in (days)<input id="accessDays" type="number" min="1" max="365" value="30" required></label><button class="primary">Generate access token</button></form><p id="accessError" role="status"></p><section id="issuedAccess" hidden><p>Copy this token now. It is displayed once and is never stored. Closing this dialog clears it.</p><label>Access token<textarea id="issuedToken" readonly autocomplete="off" spellcheck="false"></textarea></label></section><div id="accessList"></div><p>Renewal: revoke the old access, then generate a new token. Revocation blocks future reads and exports; reports already downloaded cannot be withdrawn.</p></dialog><div id="toast" role="status" aria-live="polite"></div><dialog id="guestLogin"><form id="guestLoginForm"><h2>Private read-only access</h2><label>Access token<input type="password" id="accessToken" autocomplete="off" spellcheck="false" required maxlength="43" minlength="43"></label><p>Enter the access token shared with you by the journal owner.</p><label class="remember-access"><input type="checkbox" id="rememberAccess" aria-describedby="rememberHelp">Remember access on this device</label><p id="rememberHelp" class="small">Your next visit will open automatically in this browser. Use this option on your own device. Access lasts until it expires, the owner revokes it, or you sign out.</p><button class="primary">Open journal</button><button type="button" data-close="guestLogin">Cancel</button></form></dialog><script>// HTMLService transport. Remembering access is opt-in; records are never cached here.
 'use strict';
 window.JournalCloud=(()=>{
- let token='',role='',identity='',epoch=0;
+ const STORAGE_KEY='my-reintegration-guest-access-v1';
+ let token='',role='',identity='',epoch=0,remembered=false;
  const listeners=new Set();
+ function stored(){try{return localStorage.getItem(STORAGE_KEY)||''}catch{return ''}}
+ function forget(){try{localStorage.removeItem(STORAGE_KEY)}catch{}}
  function signal(status,message=''){listeners.forEach(f=>f({status,message,role,identity,pending:false}))}
- function disconnect(){epoch++;token='';role='';identity='';signal('Enter access token')}
+ function disconnect({forgetDevice=true}={}){epoch++;token='';role='';identity='';remembered=false;if(forgetDevice)forget();signal('Enter access token')}
  function request(operation='read',week){
   const version=epoch;
   return new Promise((resolve,reject)=>{
    if(!token)return reject(Error('Enter your access token.'));
    google.script.run.withSuccessHandler(r=>{
     if(version!==epoch)return reject(Error('Session ended.'));
-    if(!r?.ok){disconnect();return reject(Error(r?.message||'Access denied.'))}
+    if(!r?.ok){disconnect({forgetDevice:r?.code==='FORBIDDEN'});return reject(Error(r?.message||'Access denied.'))}
     role='reader';identity=r.identity;signal('Read-only access');resolve(r.data);
-   }).withFailureHandler(()=>{disconnect();reject(Error('Connection error. Please enter your token again.'))}).guestRequest({token,operation,week});
+   }).withFailureHandler(()=>{if(version===epoch)disconnect({forgetDevice:false});reject(Error('Connection error. Please reopen this page to try again.'))}).guestRequest({token,operation,week});
   });
  }
- async function connect(value){disconnect();token=typeof value==='string'?value.trim():'';return request()}
+ async function start(value,remember,restoring=false){
+  disconnect({forgetDevice:!restoring});token=typeof value==='string'?value.trim():'';const version=epoch;
+  const data=await request();if(version!==epoch)throw Error('Session ended.');
+  if(remember){try{localStorage.setItem(STORAGE_KEY,token);remembered=stored()===token}catch{remembered=false}}
+  return data;
+ }
+ const connect=(value,{remember=false}={})=>start(value,remember);
+ async function restore(){const value=stored();return value?start(value,true,true):null}
+ // Signing out in another tab also clears this tab's displayed session.
+ window.addEventListener('storage',e=>{if(e.key===STORAGE_KEY&&remembered)disconnect({forgetDevice:false})});
  const forbidden=async()=>{throw Error('Read-only access. Changes are not permitted.')};
- return {guest:true,connect,disconnect,refresh:()=>request(),authorizedRead:request,commit:forbidden,retry:forbidden,onStatus:f=>listeners.add(f),get role(){return role},get identity(){return identity},get hasPending(){return false},get pendingBackup(){return null},discardPending:forbidden};
+ return {guest:true,connect,restore,disconnect,suspend:()=>disconnect({forgetDevice:false}),refresh:()=>request(),authorizedRead:request,commit:forbidden,retry:forbidden,onStatus:f=>listeners.add(f),get remembered(){return remembered},get role(){return role},get identity(){return identity},get hasPending(){return false},get pendingBackup(){return null},discardPending:forbidden};
 })();
 </script><script>'use strict';
 // Dependency-free OOXML writer. Inline strings are data, never executable formulas.
@@ -203,17 +215,17 @@ render();
 'use strict';
 (()=>{
  document.body.classList.add('guest-view');
- $('#connect').onclick=()=>$('#guestLogin').showModal();
+ $('#connect').onclick=()=>{$('#rememberAccess').checked=cloud.remembered;$('#guestLogin').showModal()};
  const clear=()=>{state=empty();$('#reportText').textContent='';for(const id of ['emailTo','emailSubject','emailBody'])$('#'+id).value='';document.querySelectorAll('dialog[open]').forEach(d=>d.close());render()};
  cloud.onStatus(event=>{if(!event.role)clear()});
  $('#guestLoginForm').onsubmit=async e=>{
-  e.preventDefault();const input=$('#accessToken');let value=input.value;input.value='';$('#guestLogin').close();
-  try{const promise=cloud.connect(value);value='';state=validate(await promise);render();toast('Connected with read-only access.')}
+  e.preventDefault();const input=$('#accessToken'),remember=$('#rememberAccess').checked;let value=input.value;input.value='';$('#guestLogin').close();
+  try{const promise=cloud.connect(value,{remember});value='';state=validate(await promise);render();toast(remember?(cloud.remembered?'Access remembered on this device.':'Connected for this visit. Your browser could not remember access.'):'Connected with read-only access.')}
   catch(e){clear();toast(e.message)}
  };
- $('#signout').onclick=()=>{cloud.disconnect();clear();toast('Session ended.')};
+ $('#signout').onclick=()=>{cloud.disconnect();clear();toast('Signed out. This device has forgotten your access.')};
  async function authorized(operation,handler,event){
-  try{state=validate(await cloud.authorizedRead(operation,week));render();return await handler?.(event)}catch(e){cloud.disconnect();clear();toast(e.message)}
+  try{state=validate(await cloud.authorizedRead(operation,week));render();return await handler?.(event)}catch(e){if(!cloud.role)clear();toast(e.message)}
  }
  for(const id of ['prev','next','today','activityTab','applicationTab','days']){const handler=$('#'+id).onclick;$('#'+id).onclick=e=>authorized('read',handler,e)}
  const change=$('#jump').onchange;$('#jump').onchange=e=>authorized('read',change,e);
@@ -222,9 +234,12 @@ render();
  }
  $('#refresh').onclick=()=>authorized('read');
  $('#connect').textContent='Enter access token';
- document.querySelector('footer').textContent='Private read-only access. The access token is kept only in memory until this page is closed or reloaded. Downloaded reports remain on your device.';
+ document.querySelector('footer').textContent='Private read-only access. Choose “Remember access on this device” to return without entering your token. Signing out forgets it. Access still expires or can be revoked by the owner. Downloaded reports remain on your device.';
  cloud.onStatus(()=>{$('#connect').textContent='Enter access token'});
- window.addEventListener('pagehide',()=>{cloud.disconnect();clear()});
+ async function restore(){try{const data=await cloud.restore();if(data){state=validate(data);render()}}catch(e){clear();toast(e.message)}}
+ window.addEventListener('pagehide',()=>{cloud.suspend();clear()});
+ window.addEventListener('pageshow',e=>{if(e.persisted)restore()});
  setInterval(()=>{if(cloud.role)authorized('read')},15000);
+ restore();
 })();
 </script></body></html>
