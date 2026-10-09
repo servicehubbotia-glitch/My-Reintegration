@@ -1,0 +1,23 @@
+// Local service doubles. These tests do not claim live Google verification.
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),crypto=require('node:crypto');
+let identity='owner@example.invalid',publicSharing=false,mutations=0;
+const data=[[],[],[['Key','Value','Updated at'],['Weekly goal',20],['Report recipient',''],['User display name',''],['Schema version',2]]];
+const ids=[201,202,203],names=['Activities','Applications','Settings'];
+const context={Session:{getEffectiveUser:()=>({getEmail:()=>identity})},PropertiesService:{getScriptProperties:()=>({getProperty:key=>({SPREADSHEET_ID:'isolated-test',OWNER_EMAIL:'owner@example.invalid',READER_EMAILS:'["reader@example.invalid"]'}[key])})},LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock(){}})},Utilities:{DigestAlgorithm:{SHA_256:1},computeDigest:(_,s)=>[...crypto.createHash('sha256').update(s).digest()]},Drive:{Files:{get:()=>({mimeType:'application/vnd.google-apps.spreadsheet',owners:[{emailAddress:'owner@example.invalid'}],capabilities:{canEdit:identity.startsWith('owner')}})},Permissions:{list:()=>({permissions:publicSharing?[{type:'anyone',role:'reader'}]:[{type:'user',role:'owner'}]})}},Sheets:{Spreadsheets:{get:()=>({sheets:names.map((title,i)=>({properties:{title,sheetId:ids[i]}}))}),Values:{batchGet:()=>({valueRanges:data.map(values=>({values:structuredClone(values)}))})}}}};
+context.Sheets.Spreadsheets.batchUpdate=({requests})=>{mutations++;for(const r of requests){if(r.appendCells){const a=r.appendCells;data[ids.indexOf(a.sheetId)].push(...a.rows.map(row=>row.values.map(c=>c.userEnteredValue.stringValue??c.userEnteredValue.numberValue)))}else if(r.updateCells){const a=r.updateCells;data[ids.indexOf(a.start.sheetId)][a.start.rowIndex]=a.rows[0].values.map(c=>c.userEnteredValue.stringValue??c.userEnteredValue.numberValue)}else if(r.deleteDimension){const a=r.deleteDimension.range;data[ids.indexOf(a.sheetId)].splice(a.startIndex,a.endIndex-a.startIndex)}}};
+vm.createContext(context);vm.runInContext(fs.readFileSync('apps-script/Code.gs','utf8'),context);
+data[0]=[vm.runInContext('TABLES_.activities.headers',context)];data[1]=[vm.runInContext('TABLES_.applications.headers',context)];
+const call=r=>context.journal(r),read=()=>call({action:'read'});
+let first=read();assert.equal(first.ok,true);
+const activity={id:'test-record-0001',date:'2026-10-11',activity:'=IMPORTXML("x")',category:'Other',outcome:'',completed:'No',minutes:95,mail:'No'};
+const request={action:'commit',revision:first.revision,requestId:'test-request-0001',mutations:[{type:'put',kind:'activities',record:activity}]};
+let saved=call(request);assert.equal(saved.ok,true);assert.equal(saved.data.activities.length,1);assert.equal(saved.data.activities[0].minutes,95);assert.equal(data[0][1][2],activity.activity);
+assert.equal(call(request).replayed,true);assert.equal(mutations,1);
+assert.equal(call({...request,requestId:'test-request-stale'}).code,'CONFLICT');
+identity='reader@example.invalid';assert.equal(read().data.activities[0].activity,activity.activity);assert.equal(call({...request,revision:saved.revision,requestId:'test-request-reader'}).code,'FORBIDDEN');assert.equal(mutations,1);
+identity='stranger@example.invalid';assert.equal(read().code,'FORBIDDEN');
+identity='owner@example.invalid';publicSharing=true;assert.equal(read().code,'PUBLIC_SHARING');publicSharing=false;
+assert.equal(call({...request,revision:saved.revision,requestId:'test-request-invalid',mutations:[{type:'put',kind:'activities',record:{...activity,minutes:-1}}]}).code,'INVALID');assert.equal(mutations,1);
+saved=call({...request,revision:saved.revision,requestId:'test-request-edit',mutations:[{type:'put',kind:'activities',record:{...activity,minutes:120}}]});assert.equal(saved.data.activities[0].minutes,120);
+saved=call({...request,revision:saved.revision,requestId:'test-request-delete',mutations:[{type:'delete',kind:'activities',id:activity.id}]});assert.equal(saved.data.activities.length,0);
+console.log('PASS isolated backend: owner CRUD, reader read/write denial, unauthorized denial, public-sharing denial, idempotency, conflicts, invalid duration, literal formula input');
