@@ -13,6 +13,7 @@ function journal(request) {
  if(!lock.tryLock(15000))return {ok:false,code:'BUSY',message:'Another save is in progress. Retry with the same request.'};
  try {
   const access=authorize_();
+  if(request?.action==='access')return manageAccess_(access,request);
   if(!request||!['read','commit'].includes(request.action))fail_('INVALID','Unknown operation.');
   const loaded=load_(access.id);
   if(request.action==='read')return {ok:true,...snapshot_(loaded,access)};
@@ -109,3 +110,52 @@ function validateRecord_(kind,r){
  if(kind==='applications'&&(!r.function.trim()||!r.company.trim()||(r.interview&&!validDate_(r.interview))))fail_('INVALID','Invalid application.');
 }
 function validateSettings_(s){if(!s||!Number.isFinite(s.goal)||s.goal<.25||s.goal>168||typeof s.name!=='string'||s.name.length>200||typeof s.recipient!=='string'||s.recipient.length>320||s.recipient&& !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.recipient))fail_('INVALID','Invalid settings.')}
+
+// Shared private helpers. The registry stores hashes only, never bearer tokens.
+const ACCESS_HEADERS_=['Access ID','Token hash','Expires at','Revoked at','Created at'];
+const LOG_HEADERS_=['Timestamp','Access ID','Operation','Result'];
+function accessSheets_(id,create){
+ const meta=Sheets.Spreadsheets.get(id,{fields:'sheets(properties(sheetId,title))'});
+ const out={};
+ for(const [name,headers] of [['AccessGrants',ACCESS_HEADERS_],['AccessLog',LOG_HEADERS_]]){
+  let sheet=meta.sheets.find(s=>s.properties.title===name);
+  if(!sheet&&create){
+   const response=Sheets.Spreadsheets.batchUpdate({requests:[{addSheet:{properties:{title:name}}}]},id);
+   sheet={properties:response.replies[0].addSheet.properties};
+   Sheets.Spreadsheets.batchUpdate({requests:[writeRow_(sheet.properties.sheetId,0,headers)]},id);
+  }
+  if(!sheet)fail_('SETUP_REQUIRED','Private access has not been configured.');
+  const rows=Sheets.Spreadsheets.Values.get(id,"'"+name+"'!"+(name==='AccessGrants'?'A:E':'A1:D1'),{valueRenderOption:'UNFORMATTED_VALUE'}).values||[];
+  if(JSON.stringify(rows[0])!==JSON.stringify(headers))fail_('SCHEMA','Invalid private access configuration.');
+  out[name]={sheetId:sheet.properties.sheetId,rows:rows.slice(1)};
+ }
+ return out;
+}
+function accessLog_(id,sheetId,accessId,operation,allowed){
+ Sheets.Spreadsheets.batchUpdate({requests:[{appendCells:{sheetId,rows:[{values:[new Date().toISOString(),accessId,operation,allowed?'authorized':'rejected'].map(cell_)}],fields:'userEnteredValue'}}]},id);
+}
+function equalHash_(a,b){let diff=a.length^b.length;for(let i=0;i<64;i++)diff|=(a.charCodeAt(i)||0)^(b.charCodeAt(i)||0);return diff===0}
+
+function manageAccess_(access,r){
+ if(access.role!=='owner')fail_('FORBIDDEN','Only the owner can manage private access.');
+ if(!['list','create','revoke'].includes(r.operation))fail_('INVALID','Unknown access operation.');
+ const db=accessSheets_(access.id,true),rows=db.AccessGrants.rows;
+ const now=new Date().toISOString();
+ if(r.operation==='create'){
+  if(!validId_(r.id)||!/^[a-f0-9]{64}$/.test(r.digest||''))fail_('INVALID','Invalid access identifier or digest.');
+  const expiry=Date.parse(r.expiresAt);
+  if(!Number.isFinite(expiry)||new Date(expiry).toISOString()!==r.expiresAt||expiry<=Date.now()||expiry>Date.now()+366*86400000)fail_('INVALID','Choose an expiry within the next year.');
+  const existing=rows.find(row=>row[0]===r.id);
+  if(existing){if(existing[1]!==r.digest||existing[2]!==r.expiresAt)fail_('CONFLICT','Access identifier already exists.');}
+  else{
+   if(rows.some(row=>row[1]===r.digest))fail_('CONFLICT','Use a new access token.');
+   Sheets.Spreadsheets.batchUpdate({requests:[{appendCells:{sheetId:db.AccessGrants.sheetId,rows:[{values:[r.id,r.digest,r.expiresAt,'',now].map(cell_)}],fields:'userEnteredValue'}}]},access.id);
+  }
+ }
+ if(r.operation==='revoke'){
+  const i=rows.findIndex(row=>row[0]===r.id);if(i<0)fail_('INVALID','Access identifier was not found.');
+  if(!rows[i][3])Sheets.Spreadsheets.batchUpdate({requests:[writeRow_(db.AccessGrants.sheetId,i+1,[...rows[i].slice(0,3),now,rows[i][4]])]},access.id);
+ }
+ const fresh=accessSheets_(access.id,false);
+ return {ok:true,grants:fresh.AccessGrants.rows.map(row=>({id:row[0],expiresAt:row[2],revokedAt:row[3]||'',createdAt:row[4]}))};
+}

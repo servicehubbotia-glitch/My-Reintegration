@@ -1,7 +1,7 @@
 name: Check Google integration candidate
 on:
   push:
-    branches: [google-sheets-integration]
+    branches: [google-sheets-integration, private-reader-access]
   pull_request:
     branches: [main]
 permissions:
@@ -20,10 +20,13 @@ jobs:
           node --check app.js
           node --check google-store.js
           node --check excel-export.js
+          node scripts/build-guest.cjs
+          node tests/guest-backend.cjs
           node tests/backend.cjs
           node tests/excel.cjs
           python3 -m http.server 8765 &
           node tests/cloud-browser.cjs
+          node tests/guest-browser.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
