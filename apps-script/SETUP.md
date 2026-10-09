@@ -1,6 +1,6 @@
-# Authorized Google deployment — pending
+# Authorized Google deployment
 
-This branch is an integration candidate, not a verified live deployment. The public site must remain on the previous version until the steps and live checks below pass. No private workbook, account identity, spreadsheet ID, OAuth secret or token belongs in the public repository.
+The owner-only API executable has been deployed and the original spreadsheet is Restricted. Live service tests passed for read/create/edit/delete, idempotent retry and literal formula handling in temporary isolated tabs; those tabs were removed. GitHub Pages OAuth/API connection, real settings writes, independent spreadsheet readback and recovery in a second authenticated app tab are verified. Downloaded XLSX files from both sessions were independently parsed. Reader identity access remains disabled; reader authorization tests use isolated fixtures. Original local-record migration is user-initiated in the browser where those records exist. No private workbook, account identity, spreadsheet ID, OAuth secret or token belongs in the public repository.
 
 ## Owner setup
 
@@ -39,4 +39,4 @@ The original attachment `activiteiten dag boek, activity log (ENG).xlsx` was rea
 
 The attachment's text was readable; binary download returned HTTP 403. Exact original visual formatting, merged cells and embedded images therefore remain unverified. The output is a real OOXML workbook independently parsed with openpyxl; it is not a renamed CSV.
 
-Local checks: `node tests/backend.cjs`, `node tests/excel.cjs`. Backend tests use service doubles and do not prove live OAuth, CORS or Google persistence. `tests/browser.cjs` currently tests the previous local-storage version and needs adaptation before release.
+Local checks: `node tests/backend.cjs`, `node tests/excel.cjs`. Backend tests use service doubles and do not prove live OAuth, CORS or Google persistence. `tests/cloud-browser.cjs` validates the integrated UI using isolated simulated Google transport. `tests/browser.cjs` is retained as a historical test of the local-only version.
