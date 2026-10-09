@@ -14,13 +14,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: npm install --no-save --package-lock=false playwright@1.58.2 pdf-lib@1.17.1
+      - run: npx playwright install --with-deps chromium
       - run: |
           node --check app.js
           node --check google-store.js
           node --check excel-export.js
           node tests/backend.cjs
           node tests/excel.cjs
+          python3 -m http.server 8765 &
+          node tests/cloud-browser.cjs
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: isolated-excel-fixture
-          path: test-results/template-export.xlsx
+          path: test-results/
