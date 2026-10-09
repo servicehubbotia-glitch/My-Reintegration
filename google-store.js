@@ -12,7 +12,7 @@ window.JournalCloud = (() => {
   if(!token||Date.now()>=expires)throw failure('AUTH','Sign in with Google to continue. Pending changes are retained.');
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),45000);
   try{
-   const r=await fetch(`https://script.googleapis.com/v1/scripts/${encodeURIComponent(config().scriptId)}:run`,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({function:'journal',parameters:[request],devMode:false}),signal:controller.signal});
+   const r=await fetch(`https://script.googleapis.com/v1/scripts/${encodeURIComponent(config().deploymentId)}:run`,{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({function:'journal',parameters:[request],devMode:false}),signal:controller.signal});
    const result=await r.json();
    if(!r.ok||result.error)throw failure(r.status===401?'AUTH':'SERVICE_ERROR',result.error?.details?.[0]?.errorMessage||result.error?.message||'Google could not complete this request.');
    const out=result.response?.result;if(!out?.ok)throw failure(out?.code||'SERVICE_ERROR',out?.message||'Google did not confirm the operation.');
@@ -25,7 +25,7 @@ window.JournalCloud = (() => {
  function restorePending(){try{pending=JSON.parse(localStorage.getItem(recoveryKey())||'null');if(pending&&pending.identity!==identity)throw Error('Wrong recovery account.')}catch(e){throw failure('RECOVERY','Recovery data could not be read. Export it before continuing.')}}
  function connect(){
   return new Promise((resolve,reject)=>{
-   if(!config().clientId||!config().scriptId){reject(failure('SETUP_REQUIRED','Google connection awaits owner authorization and deployment. Existing local records remain untouched.'));return}
+   if(!config().clientId||!config().deploymentId){reject(failure('SETUP_REQUIRED','Google connection awaits owner authorization and deployment. Existing local records remain untouched.'));return}
    if(!window.google?.accounts?.oauth2){reject(failure('CONNECTION','Google sign-in did not load. Check your connection.'));return}
    const client=google.accounts.oauth2.initTokenClient({client_id:config().clientId,scope,callback:async r=>{
     if(r.error){reject(failure('AUTH',r.error_description||r.error));return}
