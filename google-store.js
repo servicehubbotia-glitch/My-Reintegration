@@ -61,5 +61,5 @@ window.JournalCloud = (() => {
  async function refresh(){if(busy)throw failure('BUSY','A save is in progress.');const r=await call({action:'read'});const data=accept(r);signal(pending?'Unsaved changes':'Saved');return data}
  function disconnect(){token='';expires=0;identity='';role='';revision='';current=null;pending=null;signal('Sign in to Google')}
  function discardPending(){if(busy)throw failure('BUSY','Wait for the save to finish.');clearPending();signal('Saved')}
- return {connect,commit,retry,refresh,disconnect,changes,onStatus:f=>listeners.add(f),get role(){return role},get identity(){return identity},get hasPending(){return !!pending},get pendingBackup(){return pending?structuredClone(pending):null},discardPending};
+ return {manageAccess:request=>call({action:'access',...request}),connect,commit,retry,refresh,disconnect,changes,onStatus:f=>listeners.add(f),get role(){return role},get identity(){return identity},get hasPending(){return !!pending},get pendingBackup(){return pending?structuredClone(pending):null},discardPending};
 })();
