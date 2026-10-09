@@ -1,19 +1,21 @@
 // Isolated service doubles: no synthetic records enter the user's sheet.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),crypto=require('node:crypto');
 const token=crypto.randomBytes(32).toString('base64url');let logFails=false,publicSharing=false,reads=0,identity='owner@example.invalid';
-const sheets={Activities:{id:201,rows:[]},Applications:{id:202,rows:[]},Settings:{id:203,rows:[['Key','Value','Updated at'],['Weekly goal',20],['Report recipient',''],['User display name','']]},AccessGrants:{id:204,rows:[['Access ID','Token hash','Expires at','Revoked at','Created at']]},AccessLog:{id:205,rows:[['Timestamp','Access ID','Operation','Result']]}};
+const sheets={Activities:{id:201,rows:[]},Applications:{id:202,rows:[]},Settings:{id:203,rows:[['Key','Value','Updated at'],['Weekly goal',20],['Report recipient','owner-private@example.invalid'],['User display name','']]},AccessGrants:{id:204,rows:[['Access ID','Token hash','Expires at','Revoked at','Created at']]},AccessLog:{id:205,rows:[['Timestamp','Access ID','Operation','Result']]}};
 const context={Session:{getEffectiveUser:()=>({getEmail:()=>identity})},PropertiesService:{getScriptProperties:()=>({getProperty:k=>({SPREADSHEET_ID:'isolated',OWNER_EMAIL:'owner@example.invalid',READER_EMAILS:'["reader@example.invalid"]'}[k])})},LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock(){}})},Utilities:{DigestAlgorithm:{SHA_256:1},computeDigest:(_,s)=>[...crypto.createHash('sha256').update(s).digest()]},Drive:{Files:{get:()=>({mimeType:'application/vnd.google-apps.spreadsheet',owners:[{emailAddress:'owner@example.invalid'}],capabilities:{canEdit:true}})},Permissions:{list:()=>({permissions:publicSharing?[{type:'anyone'}]:[{type:'user'}]})}},Sheets:{Spreadsheets:{get:()=>({sheets:Object.entries(sheets).map(([title,s])=>({properties:{title,sheetId:s.id}}))}),Values:{get:(_,range)=>({values:structuredClone(sheets[range.split("'")[1]].rows)}),batchGet:()=>{reads++;return {valueRanges:['Activities','Applications','Settings'].map(n=>({values:structuredClone(sheets[n].rows)}))}}},batchUpdate:({requests})=>{for(const r of requests){const a=r.appendCells||r.updateCells,s=Object.values(sheets).find(x=>x.id===(a.sheetId??a.start.sheetId));if(s===sheets.AccessLog&&logFails)throw Error('Audit unavailable');const rows=a.rows.map(row=>row.values.map(c=>c.userEnteredValue.stringValue??c.userEnteredValue.numberValue));if(r.appendCells)s.rows.push(...rows);else s.rows[a.start.rowIndex]=rows[0]}}}}};
 vm.createContext(context);vm.runInContext(fs.readFileSync('apps-script-guest/ReadHelpers.gs','utf8')+fs.readFileSync('apps-script-guest/Guest.gs','utf8'),context);
 sheets.Activities.rows=[vm.runInContext('TABLES_.activities.headers',context)];sheets.Applications.rows=[vm.runInContext('TABLES_.applications.headers',context)];
 sheets.Activities.rows.push(['synthetic-0001','2026-10-11','Isolated test','Other','Outcome','No',95,'No','2026-10-01','2026-10-01']);
 const hash=crypto.createHash('sha256').update(JSON.stringify(token)).digest('hex');sheets.AccessGrants.rows.push(['synthetic-access',hash,new Date(Date.now()+86400000).toISOString(),'','2026-10-09']);
-const call=(operation='read',value=token)=>context.guestRequest({operation,token:value,week:'2026-10-05'});
-for(const op of ['read','report','export.pdf','export.xlsx','export.csv','export.copy']){const r=call(op);assert.equal(r.ok,true);assert.equal(r.data.activities[0].minutes,95);assert.equal(r.role,'reader');assert.equal(sheets.AccessLog.rows.at(-1)[3],'authorized')}
-const before=reads;for(const t of ['',null,'incorrect','x'.repeat(43)])assert.equal(call('read',t).ok,false);assert.equal(reads,before);
+const call=(operation='read')=>context.guestRequest({operation,week:'2026-10-05'});
+for(const op of ['read','report','export.pdf','export.xlsx','export.csv','export.copy']){const r=call(op);assert.equal(r.ok,true);assert.equal(r.data.activities[0].minutes,95);assert.equal(r.role,'reader');assert.equal(r.identity,'link-reader');assert.equal(r.data.settings.recipient,'');assert.equal(sheets.AccessLog.rows.at(-1)[3],'authorized')}
+const before=reads;
 for(const op of ['commit','create','delete','settings','access','journal']){assert.equal(call(op).ok,false);assert.equal(sheets.AccessLog.rows.at(-1)[2],'unsupported')}assert.equal(reads,before);
-sheets.AccessGrants.rows[1][2]='2000-01-01T00:00:00.000Z';assert.equal(call().ok,false);
-sheets.AccessGrants.rows[1][2]=new Date(Date.now()+86400000).toISOString();sheets.AccessGrants.rows[1][3]=new Date().toISOString();for(const op of ['read','export.xlsx','export.pdf'])assert.equal(call(op).ok,false);assert.equal(reads,before);
-sheets.AccessGrants.rows[1][3]='';publicSharing=true;assert.equal(call().ok,false);publicSharing=false;logFails=true;assert.equal(call().ok,false);logFails=false;
+assert.equal(context.guestRequest({action:'commit',mutations:[{type:'delete',id:'synthetic-0001'}]}).ok,false);assert.equal(reads,before);
+assert.equal(context.guestRequest({operation:'export.pdf',week:'invalid',token}).ok,false);
+const grantFixture=sheets.AccessGrants;delete sheets.AccessGrants;assert.equal(call().ok,true);sheets.AccessGrants=grantFixture;
+publicSharing=true;assert.equal(call().ok,false);publicSharing=false;logFails=true;assert.equal(call().ok,false);logFails=false;
+assert.ok(sheets.AccessLog.rows.slice(1).every(r=>r[1]==='link-reader'));
 assert.ok(!JSON.stringify(sheets.AccessLog).includes(token));assert.ok(sheets.AccessLog.rows.every(r=>r.length===4));
 assert.deepEqual(Object.keys(context).filter(k=>typeof context[k]==='function'&&!k.endsWith('_')).sort(),['doGet','guestRequest']);
 // Separately execute the authenticated owner service with the same isolated sheets.
@@ -21,5 +23,5 @@ const admin={...context};vm.createContext(admin);vm.runInContext(fs.readFileSync
 identity='reader@example.invalid';assert.equal(admin.journal({action:'access',operation:'list'}).ok,false);identity='owner@example.invalid';
 let grants=admin.journal({action:'access',operation:'list'});assert.equal(grants.ok,true);assert.ok(!JSON.stringify(grants).includes(hash));
 const newGrant={action:'access',operation:'create',id:'new-test-access',digest:'a'.repeat(64),expiresAt:new Date(Date.now()+86400000).toISOString()};assert.equal(admin.journal(newGrant).ok,true);assert.equal(admin.journal(newGrant).ok,true);assert.equal(sheets.AccessGrants.rows.filter(r=>r[0]===newGrant.id).length,1);
-assert.equal(admin.journal({action:'access',operation:'revoke',id:'synthetic-access'}).ok,true);assert.equal(call().ok,false);
-console.log('PASS isolated guest: all reads/exports authenticated; no CRUD entrypoints; invalid, expired, revoked tokens denied; private sharing enforced; audit fails closed; no token in logs; owner-only grants, idempotency, revocation');
+assert.equal(admin.journal({action:'access',operation:'revoke',id:'synthetic-access'}).ok,true);assert.equal(call().ok,true);
+console.log('PASS direct read-only link: credential-free reads/exports, no CRUD entrypoints, mutation attempts denied, private sheet retained, private recipient excluded, fixed audit values, no grant dependency; owner administration remains separate');

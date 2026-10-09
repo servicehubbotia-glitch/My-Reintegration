@@ -40,28 +40,7 @@ function validateRecord_(kind,r){
 }
 function validateSettings_(s){if(!s||!Number.isFinite(s.goal)||s.goal<.25||s.goal>168||typeof s.name!=='string'||s.name.length>200||typeof s.recipient!=='string'||s.recipient.length>320||s.recipient&& !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.recipient))fail_('INVALID','Invalid settings.')}
 
-// Shared private helpers. The registry stores hashes only, never bearer tokens.
-const ACCESS_HEADERS_=['Access ID','Token hash','Expires at','Revoked at','Created at'];
 const LOG_HEADERS_=['Timestamp','Access ID','Operation','Result'];
-function accessSheets_(id,create){
- const meta=Sheets.Spreadsheets.get(id,{fields:'sheets(properties(sheetId,title))'});
- const out={};
- for(const [name,headers] of [['AccessGrants',ACCESS_HEADERS_],['AccessLog',LOG_HEADERS_]]){
-  let sheet=meta.sheets.find(s=>s.properties.title===name);
-  if(!sheet&&create){
-   const response=Sheets.Spreadsheets.batchUpdate({requests:[{addSheet:{properties:{title:name}}}]},id);
-   sheet={properties:response.replies[0].addSheet.properties};
-   Sheets.Spreadsheets.batchUpdate({requests:[writeRow_(sheet.properties.sheetId,0,headers)]},id);
-  }
-  if(!sheet)fail_('SETUP_REQUIRED','Private access has not been configured.');
-  const rows=Sheets.Spreadsheets.Values.get(id,"'"+name+"'!"+(name==='AccessGrants'?'A:E':'A1:D1'),{valueRenderOption:'UNFORMATTED_VALUE'}).values||[];
-  if(JSON.stringify(rows[0])!==JSON.stringify(headers))fail_('SCHEMA','Invalid private access configuration.');
-  out[name]={sheetId:sheet.properties.sheetId,rows:rows.slice(1)};
- }
- return out;
-}
 function accessLog_(id,sheetId,accessId,operation,allowed){
  Sheets.Spreadsheets.batchUpdate({requests:[{appendCells:{sheetId,rows:[{values:[new Date().toISOString(),accessId,operation,allowed?'authorized':'rejected'].map(cell_)}],fields:'userEnteredValue'}}]},id);
 }
-function equalHash_(a,b){let diff=a.length^b.length;for(let i=0;i<64;i++)diff|=(a.charCodeAt(i)||0)^(b.charCodeAt(i)||0);return diff===0}
-

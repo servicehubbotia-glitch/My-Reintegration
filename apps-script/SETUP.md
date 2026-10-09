@@ -4,7 +4,7 @@ The owner-only API executable has been deployed and the original spreadsheet is 
 
 ## Owner setup
 
-As of 9 October 2026, version 2 of the owner-only API executable includes token grant management. Live creation, listing and revocation were verified. The separate token-based reader web app is deployed and verified; see [guest deployment status](../apps-script-guest/SETUP.md). Google-identity reader access described below remains disabled.
+As of 9 October 2026, version 2 of the owner-only API executable includes token grant management. Live creation, listing and revocation were verified. The separate reader web app now opens directly for anyone with its link, as explicitly approved by the owner; see [guest deployment status](../apps-script-guest/SETUP.md). Google-identity reader access described below remains disabled.
 
 1. In the existing spreadsheet, change General access to **Restricted**. Keep its ID and folder. The service deliberately refuses a spreadsheet with anyone/domain permissions.
 2. Open Extensions → Apps Script from that spreadsheet. Add `Code.gs` and the manifest from this directory. Configure Script Properties: `SPREADSHEET_ID` for the original spreadsheet and `OWNER_EMAIL` for its verified owner. Leave `READER_EMAILS` absent (no reader access).

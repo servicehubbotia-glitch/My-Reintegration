@@ -35,9 +35,10 @@ function accessUI(){
  for(const k of ['goal','recipient','name'])$('#settingsForm').elements[k].disabled=!writable;
  $('#import').disabled=!writable;
  $('#backup').disabled=!connected;
- $('#signout').hidden=!connected;$('#refresh').hidden=!connected;
- $('#connect').textContent=cloud.guest?'Enter access token':connected?'Switch Google account':'Connect Google';
- if(cloud.guest&&!connected)$('#syncStatus').textContent='Enter access token';
+ $('#signout').hidden=!!cloud.publicLink||!connected;$('#refresh').hidden=!(connected||cloud.publicLink);
+ $('#connect').hidden=!!cloud.publicLink;
+ $('#connect').textContent=connected?'Switch Google account':'Connect Google';
+ if(cloud.publicLink){const box=$('#records .empty');if(box){box.querySelector('h3').textContent=view==='activities'?'No activities recorded.':'No applications recorded.';box.querySelector('p').textContent=view==='activities'?'There are no activities for the selected day.':'Applications will appear here when recorded.';box.querySelector('.symbol').textContent='—'}}
  $('#retry').hidden=!cloud.hasPending;$('#pendingBackup').hidden=!cloud.hasPending;$('#resolvePending').hidden=!cloud.hasPending;
  $('#migrate').hidden=cloud.role!=='owner';
 }
