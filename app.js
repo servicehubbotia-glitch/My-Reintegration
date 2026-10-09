@@ -36,7 +36,8 @@ function accessUI(){
  $('#import').disabled=!writable;
  $('#backup').disabled=!connected;
  $('#signout').hidden=!connected;$('#refresh').hidden=!connected;
- $('#connect').textContent=connected?'Switch Google account':'Connect Google';
+ $('#connect').textContent=cloud.guest?'Enter access token':connected?'Switch Google account':'Connect Google';
+ if(cloud.guest&&!connected)$('#syncStatus').textContent='Enter access token';
  $('#retry').hidden=!cloud.hasPending;$('#pendingBackup').hidden=!cloud.hasPending;$('#resolvePending').hidden=!cloud.hasPending;
  $('#migrate').hidden=cloud.role!=='owner';
 }

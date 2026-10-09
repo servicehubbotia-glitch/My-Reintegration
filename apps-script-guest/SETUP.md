@@ -18,6 +18,14 @@ The owner API remains MYSELF-only. Deploy its updated Code.gs before enabling th
 
 All operations allowlisted (`read`, `report`, `export.pdf`, `export.xlsx`, `export.csv`, `export.copy`) must provide the token. Unknown operations are rejected and logged without their raw input. A failed audit write fails closed. Exports request a fresh authorized snapshot before local file generation. Anonymous requests to the login shell contain no personal data. Tokens are not passed in URLs, localStorage/sessionStorage, console/exception logging or exported reports.
 
-## Verification status
+## Verification status — 9 October 2026
 
-Local security tests use isolated service doubles; Chromium tests use an isolated HTMLService transport. Neither substitutes for a live deployment test. Before announcing completion, verify actual anonymous valid/invalid/expired/revoked access, XLSX/PDF, audit rows, and absence of write RPCs. No real-record test fixtures should be added to Activities/Applications. The production reader deployment is not yet activated.
+The guest web app is active at version 2, with Sheets v4, Drive v3, private Script Properties and owner execution. The separate owner API executable is also version 2, remains MYSELF-only, and live token creation/list/revocation work from the owner app. The original spreadsheet is still Restricted, with only its owner permission.
+
+Live checks passed: valid token access, rejection of an unknown token, rejection after moving the temporary test grant's expiry into the past, and rejection after revocation through the owner app. Expiry was restored before testing revocation; the test grant was left revoked. No journal records were created or changed. Each outcome and both exports were independently checked in AccessLog. The UI cleared access after rejection. A cookie-free HTTP request returned the public login shell with HTTP 200, without requiring Google login or returning the owner's name. Token-based UI tests used the connected browser; a separate signed-out browser was not used.
+
+PDF and XLSX were downloaded from the deployed service and independently opened. PDF was visually checked; XLSX parsed successfully as a real OOXML workbook with the expected Blad1 sheet. The current week contained no activities or applications, so live export checks cover that empty-week case. Populated export fixtures remain isolated tests.
+
+The live check found HTMLService truncating an XML namespace string at `http://` in the inline Excel exporter. The build now hex-escapes URL slashes without changing their JavaScript string values. The served version compiles, the real XLSX download succeeds, and `node tests/excel.cjs` verifies the generated inline exporter produces identical workbook bytes to the original module.
+
+`node tests/guest-backend.cjs` also passes authorization, operation allowlisting, private sharing, audit failure, token secrecy and absence of CRUD entrypoint checks with isolated service doubles. These code-level checks do not claim a live write-RPC penetration test. Keep credentials, raw tokens, spreadsheet IDs and audit contents out of this repository.

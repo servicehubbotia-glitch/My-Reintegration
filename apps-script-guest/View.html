@@ -43,7 +43,7 @@ window.JournalExcel = (()=>{
  const enc=new TextEncoder();
  const xml=s=>String(s??'').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
  const header='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
- const ns='http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+ const ns='http:\x2f\x2fschemas.openxmlformats.org/spreadsheetml/2006/main';
  const col=i=>{let s='';for(i++;i;i=Math.floor((i-1)/26))s=String.fromCharCode(65+(i-1)%26)+s;return s};
  const day=s=>({value:(Date.parse(s+'T00:00:00Z')-Date.UTC(1899,11,30))/86400000,style:2});
  function sheet(rows,widths,headings,merges){return header+`<worksheet xmlns="${ns}"><sheetViews><sheetView workbookViewId="0"/></sheetViews><cols>`+widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')+'</cols><sheetData>'+rows.map((row,i)=>`<row r="${i+1}" ht="${headings.has(i+1)?56:42}" customHeight="1">`+row.map((v,j)=>{const ref=col(j)+(i+1),s=headings.has(i+1)?1:typeof v==='object'?v.style||0:0;return typeof v==='number'||v&&typeof v==='object'?`<c r="${ref}" s="${s}" t="n"><v>${typeof v==='number'?v:v.value}</v></c>`:`<c r="${ref}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${xml(v)}</t></is></c>`}).join('')+'</row>').join('')+`</sheetData><mergeCells count="${merges.length}">${merges.map(ref=>`<mergeCell ref="${ref}"/>`).join('')}</mergeCells><pageSetup orientation="landscape" paperSize="9" fitToWidth="1" fitToHeight="0"/></worksheet>`}
@@ -68,10 +68,10 @@ window.JournalExcel = (()=>{
  for(let r=section+1;r<=end;r++)merges.push(`C${r}:E${r}`,`H${r}:I${r}`);
  const headings=new Set([1,3,4,section,section+1]);
  return zip({
- '[Content_Types].xml':header+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>',
- '_rels/.rels':header+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
- 'xl/workbook.xml':header+`<workbook xmlns="${ns}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Blad1" sheetId="1" r:id="rId1"/></sheets></workbook>`,
- 'xl/_rels/workbook.xml.rels':header+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>',
+ '[Content_Types].xml':header+'<Types xmlns="http:\x2f\x2fschemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>',
+ '_rels/.rels':header+'<Relationships xmlns="http:\x2f\x2fschemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http:\x2f\x2fschemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+ 'xl/workbook.xml':header+`<workbook xmlns="${ns}" xmlns:r="http:\x2f\x2fschemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Blad1" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+ 'xl/_rels/workbook.xml.rels':header+'<Relationships xmlns="http:\x2f\x2fschemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http:\x2f\x2fschemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId3" Type="http:\x2f\x2fschemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>',
  'xl/styles.xml':header+`<styleSheet xmlns="${ns}"><numFmts count="2"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/><numFmt numFmtId="165" formatCode="[h]:mm"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE8EEE8"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="4"><xf fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf fontId="1" fillId="2" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`,
  'xl/worksheets/sheet1.xml':sheet(rows,[32,18,20,15,20,24,18,25,28],headings,merges)});
  }
@@ -115,7 +115,8 @@ function accessUI(){
  $('#import').disabled=!writable;
  $('#backup').disabled=!connected;
  $('#signout').hidden=!connected;$('#refresh').hidden=!connected;
- $('#connect').textContent=connected?'Switch Google account':'Connect Google';
+ $('#connect').textContent=cloud.guest?'Enter access token':connected?'Switch Google account':'Connect Google';
+ if(cloud.guest&&!connected)$('#syncStatus').textContent='Enter access token';
  $('#retry').hidden=!cloud.hasPending;$('#pendingBackup').hidden=!cloud.hasPending;$('#resolvePending').hidden=!cloud.hasPending;
  $('#migrate').hidden=cloud.role!=='owner';
 }
