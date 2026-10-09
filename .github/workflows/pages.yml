@@ -23,11 +23,15 @@ jobs:
       - name: Install test browser
         run: npx playwright install --with-deps chromium
       - name: Check JavaScript syntax
-        run: node --check app.js
+        run: |
+          node --check app.js
+          node --check google-store.js
+          node tests/backend.cjs
+          node tests/excel.cjs
       - name: Exercise desktop and mobile workflows
         run: |
           python3 -m http.server 8765 &
-          node tests/browser.cjs
+          node tests/cloud-browser.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -36,7 +40,7 @@ jobs:
       - name: Package public application only
         run: |
           mkdir _site
-          cp index.html style.css app.js _site/
+          cp index.html style.css app.js google-config.js google-store.js excel-export.js _site/
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
