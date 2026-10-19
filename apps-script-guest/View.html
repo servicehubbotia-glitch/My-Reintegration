@@ -210,7 +210,11 @@ render();
   try{state=validate(await cloud.authorizedRead(operation,week));render();return await handler?.(event)}catch(e){if(!cloud.role)clear();toast(e.message)}
  }
  for(const id of ['prev','next','today','activityTab','applicationTab','days']){const handler=$('#'+id).onclick;$('#'+id).onclick=e=>load('read',handler,e)}
- const change=$('#jump').onchange;$('#jump').onchange=e=>load('read',change,e);
+ const change=$('#jump').onchange;
+ $('#jump').onchange=e=>{
+  const requestedDate=e.target.value;
+  return load('read',()=>{$('#jump').value=requestedDate;return change(e)},e);
+ };
  for(const [id,operation] of [['report','report'],['pdf','export.pdf'],['excel','export.xlsx'],['csv','export.csv'],['copy','export.copy']]){
   const handler=$('#'+id).onclick;$('#'+id).onclick=e=>load(operation,handler,e);
  }
