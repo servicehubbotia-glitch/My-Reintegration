@@ -5,7 +5,10 @@ await context.exposeBinding('guestTransport',(_,r)=>{assert.ok(!('token' in r));
 await context.addInitScript(()=>{window.google={script:{get run(){let success,failure;const api={withSuccessHandler:f=>(success=f,api),withFailureHandler:f=>(failure=f,api),guestRequest:r=>window.guestTransport(r).then(success,failure)};return api}}}});
 const p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));
 try{
- await p.goto('http://127.0.0.1:8765/apps-script-guest/View.html');await p.waitForFunction(()=>JournalCloud.role==='reader');assert.equal(await p.locator('#connect').isVisible(),false);assert.equal(await p.locator('#signout').isVisible(),false);
+ await p.goto('http://127.0.0.1:8765/apps-script-guest/View.html');
+ try{await p.waitForFunction(()=>JournalCloud.role==='reader',null,{timeout:12000})}
+ catch(e){const state=await p.evaluate(()=>({status:document.querySelector('#syncStatus')?.textContent,cloud:typeof JournalCloud,role:window.JournalCloud?.role,google:!!window.google,script:!!window.google?.script,guest:!!window.google?.script?.run,toast:document.querySelector('#toast')?.textContent}));
+  console.error('Guest initial read diagnostics:',JSON.stringify(state),'page errors:',JSON.stringify(errors));throw e}assert.equal(await p.locator('#connect').isVisible(),false);assert.equal(await p.locator('#signout').isVisible(),false);
  await p.locator('#jump').fill('2026-10-11');await p.locator('#jump').dispatchEvent('change');await p.waitForFunction(()=>document.querySelector('#total').textContent==='1h 35m');assert.ok(calls.length>=2);
  assert.equal(await p.locator('[data-edit]:visible').count(),0);assert.equal(await p.locator('#add').isVisible(),false);assert.equal(await p.evaluate(async()=>{try{await JournalCloud.commit({});return false}catch{return true}}),true);
  await p.locator('#report').click();await p.locator('#reportDialog').waitFor({state:'visible'});assert.match(await p.locator('#reportText').textContent(),/Isolated Sunday activity/);
