@@ -2,7 +2,9 @@
 
 A lightweight weekly reintegration journal hosted on GitHub Pages. Activities and applications are stored in the owner’s original private Google spreadsheet through an OAuth-authorized Apps Script API executable. Local storage holds drafts and pending-save recovery; it is not the shared database.
 
-Open the app and choose **Connect Google**. The owner can create, edit, delete and migrate records. Reader access is disabled until the owner explicitly configures a verified Google identity and Viewer permission on the spreadsheet. Reader restrictions are enforced by the service as well as the UI.
+**Public read-only access:** Open https://servicehubbotia-glitch.github.io/My-Reintegration/ — it redirects to the separately deployed, login-free journal viewer. Anyone with the URL can see activities, applications and reports; no Google account is required. The public viewer cannot create, edit or delete records. Its read-only service does not disclose the private report-recipient setting. Application fields, including contact details entered in records, remain visible in the viewer.
+
+**Owner editing:** Open https://servicehubbotia-glitch.github.io/My-Reintegration/?edit=1 and choose **Connect Google** with the authorized owner account. Only the owner can create, edit, delete and migrate records. The underlying Google Sheet remains Restricted; never make it public. Authenticated third-party readers of the owner API remain disabled, independently of the separate public read-only viewer.
 
 ## Reports
 
