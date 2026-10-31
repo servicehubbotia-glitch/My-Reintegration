@@ -1,6 +1,6 @@
 'use strict';
 // Dependency-free OOXML writer. Inline strings are data, never executable formulas.
-// Section order and headings follow the original Marsha workbook (Blad1).
+// Section order and headings follow the original reporting workbook (Blad1).
 // The original attachment is private and is never bundled with the application.
 window.JournalExcel = (()=>{
  const enc=new TextEncoder();
@@ -20,7 +20,7 @@ window.JournalExcel = (()=>{
  applications.forEach(r=>rows.push([day(r.date),r.function,r.company,r.via,r.conversation,r.interview?day(r.interview):'',r.withWhom,r.phone,r.result]));
  while(rows.length<16)rows.push([]);
  const section=rows.length+1;rows.push(['Activity']);
- rows.push(['What activity did you do?','Date','What was the result/outcome of this activity for you?','','','Result (Completed Yes or No)','Duration',recipient?'Mail to '+recipient:'Mail to Marsha','']);
+ rows.push(['What activity did you do?','Date','What was the result/outcome of this activity for you?','','','Result (Completed Yes or No)','Duration',recipient?'Mail to '+recipient:'Mail to Urszula','']);
  const start=rows.length+1;
  activities.forEach(r=>rows.push([r.activity,day(r.date),r.outcome,'','',r.completed,{value:r.minutes/1440,style:3},r.mail,'']));
  while(rows.length<start+11)rows.push([]);
