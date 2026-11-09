@@ -19,6 +19,7 @@ jobs:
       - run: |
           node --check app.js
           node --check google-store.js
+          node tests/google-store.cjs
           node --check excel-export.js
           node scripts/build-guest.cjs
           node tests/guest-backend.cjs

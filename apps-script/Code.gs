@@ -1,6 +1,7 @@
 /** API executable only. No doGet/doPost and no anonymous web app deployment.
  * Set SPREADSHEET_ID, OWNER_EMAIL in Script Properties using the Google console.
- * READER_EMAILS is an optional JSON array, empty by default. Never ship identities.
+ * EDITOR_EMAILS and READER_EMAILS are optional JSON arrays, empty by default.
+ * Keep all account identities in Script Properties, never in the public app.
  * Enable advanced Sheets v4 and Drive v3 services in this same project.
  */
 const TABLES_ = {
@@ -17,13 +18,16 @@ function journal(request) {
   if(!request||!['read','commit'].includes(request.action))fail_('INVALID','Unknown operation.');
   const loaded=load_(access.id);
   if(request.action==='read')return {ok:true,...snapshot_(loaded,access)};
-  if(access.role!=='owner')fail_('FORBIDDEN','This account has read-only access.');
+  if(!['owner','editor'].includes(access.role))fail_('FORBIDDEN','This account has read-only access.');
   if(!/^[a-zA-Z0-9-]{12,100}$/.test(request.requestId||''))fail_('INVALID','Invalid request identifier.');
   if(!Array.isArray(request.mutations)||!request.mutations.length||request.mutations.length>50)fail_('INVALID','Send between 1 and 50 changes.');
   const fingerprint=hash_({revision:request.revision,mutations:request.mutations});
   const previous=loaded.settingsRows.find(r=>r[0]==='_op:'+request.requestId);
   if(previous){if(previous[1]!==fingerprint)fail_('CONFLICT','Request identifier was already used.');return {ok:true,replayed:true,...snapshot_(loaded,access)}}
-  if(request.revision!==loaded.revision)fail_('CONFLICT','Records have changed. Refresh and review your pending changes.');
+  const targetChecks=request.mutations.every(m=>m&&Object.prototype.hasOwnProperty.call(m,'before'));
+  // Older clients retain the global guard. Updated clients compare only their
+  // own records, so an unrelated direct Sheet edit does not block a save.
+  if(!targetChecks&&request.revision!==loaded.revision)fail_('CONFLICT','Records have changed. Refresh and review your pending changes.');
   const now=new Date().toISOString(), requests=[],seen=new Set();
   // Validate the complete batch before creating any write request.
   request.mutations.forEach(m=>{
@@ -33,6 +37,10 @@ function journal(request) {
    if(m.type==='settings'){validateSettings_(m.settings);return}
    if(!Object.prototype.hasOwnProperty.call(TABLES_,m.kind))fail_('INVALID','Unknown collection.');
    if(m.type==='put')validateRecord_(m.kind,m.record);else if(!validId_(m.id))fail_('INVALID','Invalid record identifier.');
+  });
+  if(targetChecks)request.mutations.forEach(m=>{
+   const live=m.type==='settings'?loaded.settings:loaded[m.kind].find(r=>r.id===(m.record?.id||m.id))||null;
+   if(JSON.stringify(comparable_(live))!==JSON.stringify(comparable_(m.before)))fail_('CONFLICT','An item in this save has changed. Your pending changes are retained for review.');
   });
   const rowDeletes=[];
   request.mutations.forEach(m=>{
@@ -60,19 +68,26 @@ function journal(request) {
  finally {lock.releaseLock()}
 }
 function fail_(code,message){const e=new Error(message);e.journalCode=code;throw e}
+function comparable_(record){return record===null?null:Object.fromEntries(Object.entries(record||{}).filter(([key])=>!['createdAt','updatedAt','_row'].includes(key)).sort(([a],[b])=>a.localeCompare(b)))}
+function accountList_(props,key){
+ let accounts;try{accounts=JSON.parse(props.getProperty(key)||'[]')}catch(e){fail_('SETUP_REQUIRED','Invalid authorized account configuration.')}
+ if(!Array.isArray(accounts)||accounts.some(email=>typeof email!=='string'||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())))fail_('SETUP_REQUIRED','Invalid authorized account configuration.');
+ return accounts.map(email=>email.trim().toLowerCase());
+}
 function authorize_(){
  const props=PropertiesService.getScriptProperties();const id=props.getProperty('SPREADSHEET_ID'),owner=(props.getProperty('OWNER_EMAIL')||'').trim().toLowerCase();
  const email=(Session.getEffectiveUser().getEmail()||'').toLowerCase();
  if(!id||!owner)fail_('SETUP_REQUIRED','The Google service has not been configured.');
- const readers=JSON.parse(props.getProperty('READER_EMAILS')||'[]');
- if(!email||!(email===owner||readers.includes(email)))fail_('FORBIDDEN','This Google account is not authorized.');
+ const editors=accountList_(props,'EDITOR_EMAILS'),readers=accountList_(props,'READER_EMAILS');
+ const role=email===owner?'owner':editors.includes(email)?'editor':readers.includes(email)?'reader':'';
+ if(!email||!role)fail_('FORBIDDEN','This Google account is not authorized.');
  const file=Drive.Files.get(id,{fields:'id,mimeType,owners(emailAddress),capabilities(canEdit)'});
  if(file.mimeType!=='application/vnd.google-apps.spreadsheet'||!file.owners?.some(o=>o.emailAddress.toLowerCase()===owner))fail_('FORBIDDEN','Spreadsheet ownership does not match configuration.');
  let pageToken;do{const p=Drive.Permissions.list(id,{fields:'permissions(type,role,emailAddress),nextPageToken',pageToken:pageToken||undefined});
   if(p.permissions.some(p=>p.type==='anyone'||p.type==='domain'))fail_('PUBLIC_SHARING','Set this spreadsheet to Restricted before connecting.');pageToken=p.nextPageToken;
  }while(pageToken);
- if(email===owner&&!file.capabilities.canEdit)fail_('FORBIDDEN','Owner write permission is missing.');
- return {id,role:email===owner?'owner':'reader',email};
+ if(['owner','editor'].includes(role)&&!file.capabilities?.canEdit)fail_('FORBIDDEN','This account needs editor permission on the journal data.');
+ return {id,role,email};
 }
 function cell_(v){return {userEnteredValue:typeof v==='number'?{numberValue:v}:{stringValue:String(v??'')}}}
 function writeRow_(sheetId,row,values){return {updateCells:{start:{sheetId,rowIndex:row,columnIndex:0},rows:[{values:values.map(cell_)}],fields:'userEnteredValue'}}}

@@ -4,6 +4,7 @@ const categories=['Job searching','CV and cover letter preparation','Job applica
 const empty=()=>({version:1,settings:{goal:20,recipient:'',name:''},activities:[],applications:[]});
 let state=empty(), view='activities', editing=null, timer, reportScope='week';
 const cloud=window.JournalCloud; let saveBusy=false;
+const canEdit=()=>cloud.role==='owner'||cloud.role==='editor';
 const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const date=s=>new Date(s+'T12:00:00');
 const plus=(s,n)=>{let d=date(s);d.setDate(d.getDate()+n);return iso(d)};
@@ -27,7 +28,7 @@ async function persist(next){
  catch(e){toast(e.message);return false}finally{saveBusy=false;render()}
 }
 function accessUI(){
- const connected=!!cloud.role,writable=cloud.role==='owner'&&!saveBusy&&!cloud.hasPending;
+ const connected=!!cloud.role,writable=canEdit()&&!saveBusy&&!cloud.hasPending;
  $('#add').hidden=!writable;
  document.querySelectorAll('[data-edit],[data-delete],#emptyAdd').forEach(b=>b.hidden=!writable);
  $('#report').disabled=!connected;$('#allData').disabled=!connected;$('#shareView').disabled=!connected;
@@ -40,7 +41,7 @@ function accessUI(){
  $('#connect').textContent=connected?'Switch Google account':'Connect Google';
  if(cloud.publicLink){const box=$('#records .empty');if(box){box.querySelector('h3').textContent=view==='activities'?'No activities recorded.':'No applications recorded.';box.querySelector('p').textContent=view==='activities'?'There are no activities for the selected day.':'Applications will appear here when recorded.';box.querySelector('.symbol').textContent='—'}}
  $('#retry').hidden=!cloud.hasPending;$('#pendingBackup').hidden=!cloud.hasPending;$('#resolvePending').hidden=!cloud.hasPending;
- $('#migrate').hidden=cloud.role!=='owner';
+ $('#migrate').hidden=!canEdit();
 }
 function allDates(){return [...state.activities,...state.applications].map(r=>r.date).sort()}
 function latestDate(){return allDates().at(-1)||iso(new Date())}
@@ -57,7 +58,7 @@ function render(){const acts=weekRecords('activities'),apps=weekRecords('applica
 const textField=(name,label,value='',type='text',required=false,wide=false)=>`<label class="${wide?'wide':''}">${label}<input name="${name}" type="${type}" value="${esc(value)}" ${required?'required':''} maxlength="5000"></label>`;
 const area=(name,label,value='',required=false)=>`<label class="wide">${label}<textarea name="${name}" rows="3" maxlength="20000" ${required?'required':''}>${esc(value)}</textarea></label>`;
 const select=(name,label,values,value)=>`<label>${label}<select name="${name}">${values.map(v=>`<option ${v===value?'selected':''} value="${esc(v)}">${esc(v||'No category')}</option>`).join('')}</select></label>`;
-function openEditor(record=null){if(cloud.role!=='owner'||cloud.hasPending)return toast('Connect as owner and resolve pending changes before editing.');editing={kind:view,id:record?.id||null,key:DRAFT+'-'+encodeURIComponent(cloud.identity)+'-'+view+'-'+(record?.id||selected)};let r=record||{date:selected,completed:'No',mail:'No',minutes:0};let draft;try{draft=JSON.parse(localStorage.getItem(editing.key));}catch{}if(draft&&draft.kind===view&&draft.id===editing.id&&confirm('Restore your unfinished draft?'))r=draft.values;
+function openEditor(record=null){if(!canEdit())return toast('Connect with an authorized editing account to make changes.');if(cloud.hasPending)return toast('Resolve the pending save before editing.');editing={kind:view,id:record?.id||null,key:DRAFT+'-'+encodeURIComponent(cloud.identity)+'-'+view+'-'+(record?.id||selected)};let r=record||{date:selected,completed:'No',mail:'No',minutes:0};let draft;try{draft=JSON.parse(localStorage.getItem(editing.key));}catch{}if(draft&&draft.kind===view&&draft.id===editing.id&&confirm('Restore your unfinished draft?'))r=draft.values;
  $('#editTitle').textContent=`${editing.id?'Edit':'Add'} ${view==='activities'?'activity':'application'}`;
  $('#fields').innerHTML=view==='activities'?area('activity','What activity did you do?',r.activity,true)+textField('date','Date',r.date,'date',true)+select('category','Category (optional)',['',...categories,...(r.category&&!categories.includes(r.category)?[r.category]:[])],r.category||'')+area('outcome','What was the result/outcome of this activity for you?',r.outcome)+select('completed','Result (Completed Yes or No)',['No','Yes'],r.completed)+select('mail','Mail to Urszula (Yes or No)',['No','Yes'],r.mail)+`<label>Duration — hours<input name="hours" type="number" min="0" max="168" step="1" required value="${r.hours??Math.floor(r.minutes/60)}"></label><label>Duration — minutes<input name="mins" type="number" min="0" max="59" step="1" required value="${r.mins??r.minutes%60}"></label>`:textField('date','Date of application',r.date,'date',true)+textField('function','Function',r.function,'text',true)+textField('company','Company',r.company,'text',true)+textField('via','Via',r.via)+area('conversation','Conversation',r.conversation)+textField('interview','Interview date',r.interview,'date')+textField('withWhom','With whom (did you speak)',r.withWhom)+textField('phone',"Contact person's phone number",r.phone,'tel',false,true)+area('result','Result (accepted/rejected) and reason',r.result);
  $('#editor').showModal();
@@ -65,7 +66,7 @@ function openEditor(record=null){if(cloud.role!=='owner'||cloud.hasPending)retur
 $('#editForm').addEventListener('input',()=>{try{localStorage.setItem(editing.key,JSON.stringify({...editing,values:Object.fromEntries(new FormData($('#editForm')))}));$('#draftStatus').textContent='Draft saved in this browser.'}catch{$('#draftStatus').textContent='Draft could not be saved. Keep this window open.'}});
 $('#editForm').onsubmit=async e=>{e.preventDefault();let r=Object.fromEntries(new FormData(e.target));r.id=editing.id||editing.newId||(editing.newId=crypto.randomUUID());if(editing.kind==='activities'){r.minutes=Number(r.hours)*60+Number(r.mins);delete r.hours;delete r.mins}const next=structuredClone(state),i=next[editing.kind].findIndex(x=>x.id===r.id);i>=0?next[editing.kind][i]=r:next[editing.kind].push(r);try{validate(next)}catch(err){toast(err.message);return}if(await persist(next)){localStorage.removeItem(editing.key);selected=r.date;week=monday(selected);$('#editor').close();render();toast('Record saved.')}};
 $('#discard').onclick=()=>{if(confirm('Discard this unfinished draft? Saved records will stay unchanged.')){localStorage.removeItem(editing.key);$('#editor').close()}};
-$('#records').onclick=async e=>{const b=e.target.closest('button');if(!b)return;if(b.id==='emptyAdd')return openEditor();if(b.dataset.edit)openEditor(state[view].find(r=>r.id===b.dataset.edit));if(b.dataset.delete&&cloud.role==='owner'&&confirm('Delete this record?')){const next=structuredClone(state);next[view]=next[view].filter(r=>r.id!==b.dataset.delete);if(await persist(next)){render();toast('Record deleted.')}}};
+$('#records').onclick=async e=>{const b=e.target.closest('button');if(!b)return;if(b.id==='emptyAdd')return openEditor();if(b.dataset.edit)openEditor(state[view].find(r=>r.id===b.dataset.edit));if(b.dataset.delete&&canEdit()&&confirm('Delete this record?')){const next=structuredClone(state);next[view]=next[view].filter(r=>r.id!==b.dataset.delete);if(await persist(next)){render();toast('Record deleted.')}}};
 $('#days').onclick=e=>{const b=e.target.closest('[data-day]');if(b){selected=b.dataset.day;view='activities';render()}};
 $('#latest').onclick=()=>{selected=latestDate();week=monday(selected);view='activities';render()};
 $('#prev').onclick=()=>{week=plus(week,-7);selected=plus(selected,-7);render()};$('#next').onclick=()=>{week=plus(week,7);selected=plus(selected,7);render()};$('#today').onclick=()=>{selected=iso(new Date());week=monday(selected);render()};$('#jump').onchange=e=>{if(validDate(e.target.value)){selected=e.target.value;week=monday(selected);render()}};$('#activityTab').onclick=()=>{view='activities';render()};$('#applicationTab').onclick=()=>{view='applications';render()};$('#add').onclick=()=>openEditor();document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$('#'+b.dataset.close).close());
@@ -75,7 +76,7 @@ const backup=()=>download(JSON.stringify(state,null,2),`my-reintegration-backup-
 function comparable(r){return JSON.stringify(Object.fromEntries(Object.entries(r).filter(([k])=>!['createdAt','updatedAt'].includes(k)).sort(([a],[b])=>a.localeCompare(b))))}
 async function migrationId(r){const bytes=new TextEncoder().encode(comparable(r));return 'migrated-'+Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('').slice(0,48)}
 async function mergeBackup(incoming){
- if(cloud.role!=='owner')throw Error('Connect as owner to import records.');
+ if(!canEdit())throw Error('Connect with an authorized editing account to import records.');
  validate(incoming);backup();
  let added=0,skipped=0;
  for(const kind of ['activities','applications'])for(const row of incoming[kind]){

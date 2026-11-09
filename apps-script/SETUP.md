@@ -2,22 +2,22 @@
 
 The owner-only API executable has been deployed and the original spreadsheet is Restricted. Live service tests passed for read/create/edit/delete, idempotent retry and literal formula handling in temporary isolated tabs; those tabs were removed. GitHub Pages OAuth/API connection, real settings writes, independent spreadsheet readback and recovery in a second authenticated app tab are verified. Downloaded XLSX files from both sessions were independently parsed. Reader identity access remains disabled; reader authorization tests use isolated fixtures. Original local-record migration is user-initiated in the browser where those records exist. No private workbook, account identity, spreadsheet ID, OAuth secret or token belongs in the public repository.
 
-## Owner setup
+## Owner and authorized-editor setup
 
 As of 9 October 2026, version 2 of the owner-only API executable includes token grant management. Live creation, listing and revocation were verified. The separate reader web app now opens directly for anyone with its link, as explicitly approved by the owner; see [guest deployment status](../apps-script-guest/SETUP.md). Google-identity reader access described below remains disabled.
 
 1. In the existing spreadsheet, change General access to **Restricted**. Keep its ID and folder. The service deliberately refuses a spreadsheet with anyone/domain permissions.
-2. Open Extensions → Apps Script from that spreadsheet. Add `Code.gs` and the manifest from this directory. Configure Script Properties: `SPREADSHEET_ID` for the original spreadsheet and `OWNER_EMAIL` for its verified owner. Leave `READER_EMAILS` absent (no reader access).
+2. Open Extensions → Apps Script from that spreadsheet. Add `Code.gs` and the manifest from this directory. Configure Script Properties: `SPREADSHEET_ID` for the original spreadsheet and `OWNER_EMAIL` for its verified owner. Configure `EDITOR_EMAILS` as a JSON array containing the user's explicitly authorized additional editing identity, with Editor access to this same Sheet. The owner already retains maintenance editing. Leave `READER_EMAILS` absent (no authenticated reader access).
 3. Associate the script with a standard Google Cloud project owned by the user. Enable Apps Script API, Sheets API and Drive API. Configure the OAuth consent screen and authorize the owner as a test user where appropriate.
 4. In that same Cloud project, create a Web OAuth client with JavaScript origin `https://servicehubbotia-glitch.github.io`. Use only its public client ID in `google-config.js`. Do not put a client secret in the app.
-5. Authorize the script's scopes, deploy as an **API executable**, initially owner-only (`MYSELF`), and put the API executable identifier required by `scripts.run` in `google-config.js`. Do not deploy an anonymous web app. The front end calls the authenticated Google REST API, not an Apps Script `/exec` URL.
-6. Verify from GitHub Pages that Google Identity Services popup authentication and `scripts.run` work with the deployed API and that the effective user is the signed-in owner. Do not infer these results from isolated tests.
+5. Authorize the script's scopes and update the existing **API executable** deployment to a new version. Its execution access must permit signed-in accounts (`ANYONE`), while `authorize_()` rejects every identity outside `OWNER_EMAIL`, `EDITOR_EMAILS` and the optional reader list before loading records. Do not use anonymous access or deploy this writing service as a web app. Preserve the deployment identifier in `google-config.js`. Add the authorized personal account to OAuth test users if the Cloud consent configuration requires it.
+6. Verify from GitHub Pages that Google Identity Services popup authentication and `scripts.run` work with both real editing accounts, and that the effective identity is the signed-in account. Do not infer these results from isolated tests. Private token-grant administration remains restricted to the owner; ordinary public link sharing is available to both editors.
 
 Reference: https://developers.google.com/apps-script/api/how-tos/execute and https://developers.google.com/identity/oauth2/web/guides/use-token-model
 
 ## Data and migration
 
-`Activities`, `Applications` and `Settings` use the exact headers in `Code.gs`. Preserve the original spreadsheet and any existing tabs. Dates are ISO strings; durations integer minutes. Writes use explicit string values so user text cannot become a formula. Transactions use a script lock, a revision check, an atomic Sheets batch, and a durable request receipt. External manual Sheets edits do not participate in the script lock; avoid editing the spreadsheet during an app save.
+`Activities`, `Applications` and `Settings` use the exact headers in `Code.gs`. Preserve the original spreadsheet and any existing tabs. Dates are ISO strings; durations integer minutes. Writes use explicit string values so user text cannot become a formula. Transactions use a script lock, record-level original-value checks, an atomic Sheets batch, and a durable request receipt. Changes to unrelated records do not block saving; changes to the same record cause a conflict without any partial batch write. Old clients without original-value checks retain the strict global revision guard. Direct Sheets writes do not participate in the script lock and there is no atomic compare-and-write guarantee against an external write between the app's read and batch. Preserve record IDs and verify direct writes with readback.
 
 The app does not delete `my-reintegration-v1`. Export its JSON backup before migration. Migration merges by ID/content, preserves cloud rows, assigns deterministic IDs to conflicting records, and verifies the result. Failed saves retain an account-specific recovery envelope; tokens remain only in memory. Recovery files and browser drafts contain private information.
 
@@ -27,7 +27,7 @@ After the owner explicitly authorizes a specific, verified Google identity, give
 
 ## Release gate
 
-- Verify authorized owner create/edit/delete and recovery after lost confirmation.
+- Verify both authorized editing identities can create/edit/delete, and recovery after lost confirmation.
 - Verify a second authorized session reads the same persisted values.
 - Verify reader export and direct API write denial, not just hidden UI controls.
 - Verify an unauthorized account cannot read.

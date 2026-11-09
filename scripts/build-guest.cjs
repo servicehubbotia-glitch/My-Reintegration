@@ -5,7 +5,7 @@ const inlineScript=f=>fs.readFileSync(f,'utf8').replace(/https?:\/\//g,url=>url.
 const source=fs.readFileSync('apps-script/Code.gs','utf8');
 const table=source.slice(source.indexOf('const TABLES_'),source.indexOf('// This is the only public'));
 const part=(start,end)=>source.slice(source.indexOf(start),end?source.indexOf(end):undefined);
-const helpers=table+part('function fail_','function authorize_')+part('function cell_','// Shared private helpers.')+"const LOG_HEADERS_=['Timestamp','Access ID','Operation','Result'];\n"+part('function accessLog_','function equalHash_');
+const helpers=table+part('function fail_','function comparable_')+part('function cell_','// Shared private helpers.')+"const LOG_HEADERS_=['Timestamp','Access ID','Operation','Result'];\n"+part('function accessLog_','function equalHash_');
 fs.writeFileSync('apps-script-guest/ReadHelpers.gs',helpers);
 let html=fs.readFileSync('index.html','utf8').replace('<body>','<body class="guest-view">').replace('Sign in to Google','Loading journal…').replace('<title>My Reintegration</title>','<title>My Reintegration — Read-only view</title><meta name="robots" content="noindex,nofollow">').replace(/<script[^>]*src="[^"]+"[^>]*><\/script>/g,'').replace(/<link rel="stylesheet"[^>]+>/,'');
 const style=fs.readFileSync('style.css','utf8');

@@ -9,7 +9,7 @@
   url.searchParams.set('date',sharedDate);return url.href;
  }
  function open(){const url=shareUrl();$('#sharedViewUrl').value=url;$('#openSharedView').href=url;error.textContent='';dialog.showModal()}
- cloud.onStatus(()=>{$('#privateAccess').hidden=cloud.role!=='owner'});
+ cloud.onStatus(()=>{$('#privateAccess').hidden=!canEdit()});
  $('#privateAccess').onclick=open;$('#shareView').onclick=open;
  $('#copyViewLink').onclick=async()=>{
   try{await navigator.clipboard.writeText($('#sharedViewUrl').value);error.textContent='Link copied. Anyone with the link can open this date.'}
