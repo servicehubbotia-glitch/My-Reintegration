@@ -25,3 +25,11 @@ pre{background:#EFF6FF;color:#0F2034}
 #toast{background:#0F2034;color:#FFFFFF}
 .dot{background:#2175D9}
 #syncStatus[data-status="Connection error"]{color:#B54732}
+
+.data-summary{font-size:13px;color:var(--muted);margin:0 0 18px;line-height:1.6}
+.load-message{padding:18px 20px;margin-bottom:24px;background:#EFF6FF;border:1px solid var(--line);border-radius:10px;line-height:1.6}
+.guest-view #connect,.guest-view #signout,.guest-view #settings,.guest-view #editor,.guest-view #preferences,.guest-view .email-section{display:none!important}
+.guest-view[data-journal-state="loading"] main>section,.guest-view[data-journal-state="loading"] .stats,.guest-view[data-journal-state="loading"] .tabs,
+.guest-view[data-journal-state="unavailable"] main>section,.guest-view[data-journal-state="unavailable"] .stats,.guest-view[data-journal-state="unavailable"] .tabs{display:none}
+.report-scope{max-width:340px}.intro>.actions{flex-shrink:0;max-width:330px}
+@media(max-width:650px){header>.actions{justify-content:flex-end}.intro>.actions{max-width:none}.week-top>.actions{gap:6px}.week-top>.actions button{padding:8px 10px}}

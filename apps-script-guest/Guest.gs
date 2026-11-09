@@ -1,8 +1,28 @@
 /** Guest-only project. Never copy journal(), authorize_(), or admin CRUD here.
- * Only doGet and guestRequest are remotely callable. No doPost, JSONP, CORS bridge.
+ * Only doGet and guestRequest are remotely callable. No doPost or mutation bridge.
+ * The public GitHub reader can request the same read-only snapshot using a bounded JSONP callback.
  * Private script properties: SPREADSHEET_ID and OWNER_EMAIL.
  */
-function doGet(){return HtmlService.createHtmlOutputFromFile('View').setTitle('My Reintegration — Read-only view').addMetaTag('viewport','width=device-width, initial-scale=1')}
+function doGet(e){
+ const parameters=e?.parameter||{};
+ // Old direct links retain the original Apps Script interface.
+ if(!Object.prototype.hasOwnProperty.call(parameters,'callback'))
+  return HtmlService.createHtmlOutputFromFile('View').setTitle('My Reintegration — Read-only view').addMetaTag('viewport','width=device-width, initial-scale=1');
+ const callback=parameters.callback;
+ // Only generated, single-segment identifiers are valid. Never evaluate user-supplied expressions.
+ if(typeof callback!=='string'||!/^MR_read_[a-z0-9_]{1,80}$/.test(callback)
+  ||['callback','operation','week'].some(key=>e?.parameters?.[key]&&e.parameters[key].length!==1))
+  return guestOutput_({ok:false,code:'INVALID_REQUEST',message:'Invalid public reader request.'});
+ const request={operation:parameters.operation||'read',week:parameters.week};
+ return guestOutput_(guestRequest(request),callback);
+}
+function guestOutput_(value,callback){
+ // Escaping also keeps payloads safe if a response is ever embedded in HTML.
+ const json=JSON.stringify(value).replace(/[<>&\u2028\u2029]/g,c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0'));
+ // A late response after cancellation sees a missing callback and does nothing.
+ const body=callback?'typeof '+callback+' === "function" && '+callback+'('+json+');':json;
+ return ContentService.createTextOutput(body).setMimeType(callback?ContentService.MimeType.JAVASCRIPT:ContentService.MimeType.JSON);
+}
 function guestRequest(request){
  const lock=LockService.getScriptLock();
  if(!lock.tryLock(15000))return {ok:false,code:'BUSY',message:'Please try again.'};

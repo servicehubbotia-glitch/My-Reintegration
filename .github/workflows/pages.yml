@@ -26,6 +26,9 @@ jobs:
         run: |
           node --check app.js
           node --check google-store.js
+          node --check guest-store.js
+          node --check guest-view.js
+          node tests/guest-store.cjs
           node scripts/build-guest.cjs
           node tests/guest-backend.cjs
           node tests/backend.cjs
@@ -43,7 +46,7 @@ jobs:
       - name: Package public application only
         run: |
           mkdir _site
-          cp index.html style.css app.js google-config.js google-store.js excel-export.js access-admin.js _site/
+          cp index.html style.css app.js google-config.js google-store.js guest-store.js guest-view.js excel-export.js access-admin.js _site/
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:

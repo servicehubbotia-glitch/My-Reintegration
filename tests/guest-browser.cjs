@@ -8,9 +8,13 @@ try{
  await p.goto('http://127.0.0.1:8765/apps-script-guest/View.html');
  try{await p.waitForFunction(()=>JournalCloud.role==='reader',null,{timeout:12000})}
  catch(e){const state=await p.evaluate(()=>({status:document.querySelector('#syncStatus')?.textContent,cloud:typeof JournalCloud,role:window.JournalCloud?.role,google:!!window.google,script:!!window.google?.script,guest:!!window.google?.script?.run,toast:document.querySelector('#toast')?.textContent}));
-  console.error('Guest initial read diagnostics:',JSON.stringify(state),'page errors:',JSON.stringify(errors));throw e}assert.equal(await p.locator('#connect').isVisible(),false);assert.equal(await p.locator('#signout').isVisible(),false);
- await p.locator('#jump').fill('2026-10-11');await p.locator('#jump').dispatchEvent('change');await p.waitForFunction(()=>document.querySelector('#total').textContent==='1h 35m');assert.ok(calls.length>=2);
+  console.error('Guest initial read diagnostics:',JSON.stringify(state),'page errors:',JSON.stringify(errors));throw e}assert.equal(await p.locator('#jump').inputValue(),'2026-10-11');assert.equal(await p.locator('#connect').isVisible(),false);assert.equal(await p.locator('#signout').isVisible(),false);
+ await p.locator('#jump').fill('2026-10-11');await p.locator('#jump').dispatchEvent('change');await p.waitForFunction(()=>document.querySelector('#total').textContent==='1h 35m');assert.ok(calls.length>=1); // Navigation uses the already loaded snapshot; exports still re-read.
+ assert.equal(await p.locator('#jump').inputValue(),'2026-10-11');
+ assert.match(await p.locator('#dataSummary').textContent(),/1 activities/);
  assert.equal(await p.locator('[data-edit]:visible').count(),0);assert.equal(await p.locator('#add').isVisible(),false);assert.equal(await p.evaluate(async()=>{try{await JournalCloud.commit({});return false}catch{return true}}),true);
+ await p.locator('#shareView').click();assert.match(await p.locator('#sharedViewUrl').inputValue(),/github\.io\/My-Reintegration\/\?date=2026-10-11$/);await p.locator('[data-close=accessManager]').click();
+ await p.locator('#allData').click();assert.equal(await p.locator('#reportScope').inputValue(),'all');assert.match(await p.locator('#reportText').textContent(),/ALL RECORDED DATA/);await p.locator('[data-close=reportDialog]').click();
  await p.locator('#report').click();await p.locator('#reportDialog').waitFor({state:'visible'});assert.match(await p.locator('#reportText').textContent(),/Isolated Sunday activity/);
  for(const [id,ext] of [['excel','xlsx'],['pdf','pdf']]){const wait=p.waitForEvent('download');await p.locator('#'+id).click();await(await wait).saveAs('test-results/guest.'+ext);assert.equal(calls.at(-1).operation,'export.'+ext)}
  assert.equal(fs.readFileSync('test-results/guest.xlsx').subarray(0,2).toString(),'PK');assert.ok((await PDFDocument.load(fs.readFileSync('test-results/guest.pdf'))).getPageCount()>0);

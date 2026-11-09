@@ -9,6 +9,31 @@ sheets.Activities.rows.push(['synthetic-0001','2026-10-11','Isolated test','Othe
 const hash=crypto.createHash('sha256').update(JSON.stringify(token)).digest('hex');sheets.AccessGrants.rows.push(['synthetic-access',hash,new Date(Date.now()+86400000).toISOString(),'','2026-10-09']);
 const call=(operation='read')=>context.guestRequest({operation,week:'2026-10-05'});
 for(const op of ['read','report','export.pdf','export.xlsx','export.csv','export.copy']){const r=call(op);assert.equal(r.ok,true);assert.equal(r.data.activities[0].minutes,95);assert.equal(r.role,'reader');assert.equal(r.identity,'link-reader');assert.equal(r.data.settings.recipient,'');assert.equal(sheets.AccessLog.rows.at(-1)[3],'authorized')}
+// The public Pages endpoint shares the same read-only handler; no remote browser is used.
+context.ContentService={MimeType:{JSON:'application/json',JAVASCRIPT:'application/javascript'},createTextOutput:text=>({text,setMimeType(mime){this.mime=mime;return this}})};
+context.HtmlService={createHtmlOutputFromFile:file=>({file,setTitle(title){this.title=title;return this},addMetaTag(){return this}})};
+assert.equal(context.doGet().file,'View');assert.equal(context.doGet({parameter:{date:'2026-10-11'}}).file,'View');
+const cb='MR_read_isolated_123';
+function jsonp(parameters={}){
+ const out=context.doGet({parameter:{callback:cb,operation:'read',...parameters}});assert.equal(out.mime,'application/javascript');
+ let data;vm.runInNewContext(out.text,{[cb]:value=>data=value});assert.ok(data);return {out,data};
+}
+for(const operation of ['read','report','export.pdf','export.xlsx','export.csv','export.copy']){
+ const {out,data}=jsonp({operation,week:'2026-10-05'});assert.equal(data.ok,true);assert.equal(data.role,'reader');assert.equal(data.data.settings.recipient,'');
+ assert.ok(!out.text.includes('owner-private@example.invalid'));assert.ok(!out.text.includes('Token hash'));assert.ok(!out.text.includes('AccessGrants'));
+ vm.runInNewContext(out.text,{}); // A cancelled callback is safely ignored.
+}
+const beforeInvalidCallback=reads;
+for(const callback of ['', 'alert', 'MR_read_a.b', 'MR_read_x);throw Error(1)//', 'MR_read_A', 'MR_read_'+ 'a'.repeat(81)]){
+ const out=context.doGet({parameter:{callback,operation:'read'}});assert.equal(out.mime,'application/json');assert.equal(JSON.parse(out.text).ok,false);
+}
+const duplicates=context.doGet({parameter:{callback:cb,operation:'read'},parameters:{callback:[cb,cb]}});assert.equal(duplicates.mime,'application/json');assert.equal(JSON.parse(duplicates.text).code,'INVALID_REQUEST');assert.equal(reads,beforeInvalidCallback);
+const originalActivity=sheets.Activities.rows[1][2];
+const hostileActivity='</script><script>throw Error("injected")</script>&\u2028\u2029';sheets.Activities.rows[1][2]=hostileActivity;
+const escaped=jsonp();assert.ok(!/[<>&\u2028\u2029]/.test(escaped.out.text.replace(' && ','')));assert.equal(escaped.data.data.activities[0].activity,hostileActivity);sheets.Activities.rows[1][2]=originalActivity;
+const beforeJsonpMutations=reads;
+for(const operation of ['commit','create','delete','settings','access','journal'])assert.equal(jsonp({operation,week:'2026-10-05'}).data.ok,false);
+assert.equal(reads,beforeJsonpMutations);
 const before=reads;
 for(const op of ['commit','create','delete','settings','access','journal']){assert.equal(call(op).ok,false);assert.equal(sheets.AccessLog.rows.at(-1)[2],'unsupported')}assert.equal(reads,before);
 assert.equal(context.guestRequest({action:'commit',mutations:[{type:'delete',id:'synthetic-0001'}]}).ok,false);assert.equal(reads,before);

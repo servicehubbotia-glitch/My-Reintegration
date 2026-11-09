@@ -1,5 +1,7 @@
 'use strict';
 // OAuth access tokens exist only inside this closure, never in browser storage.
+(() => {
+if (window.MR_PUBLIC_MODE) return;
 window.JournalCloud = (() => {
  const scope='https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/userinfo.email';
  let token='',expires=0,identity='',role='',revision='',current=null,pending=null,busy=false;
@@ -62,4 +64,5 @@ window.JournalCloud = (() => {
  function disconnect(){token='';expires=0;identity='';role='';revision='';current=null;pending=null;signal('Sign in to Google')}
  function discardPending(){if(busy)throw failure('BUSY','Wait for the save to finish.');clearPending();signal('Saved')}
  return {manageAccess:request=>call({action:'access',...request}),connect,commit,retry,refresh,disconnect,changes,onStatus:f=>listeners.add(f),get role(){return role},get identity(){return identity},get hasPending(){return !!pending},get pendingBackup(){return pending?structuredClone(pending):null},discardPending};
+})();
 })();
