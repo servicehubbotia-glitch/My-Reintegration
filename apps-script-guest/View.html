@@ -34,7 +34,7 @@ pre{background:#EFF6FF;color:#0F2034}
 .report-scope{max-width:340px}.intro>.actions{flex-shrink:0;max-width:330px}
 @media(max-width:650px){header>.actions{justify-content:flex-end}.intro>.actions{max-width:none}.week-top>.actions{gap:6px}.week-top>.actions button{padding:8px 10px}}
 </style></head><body class="guest-view">
-<header><a class="brand" href="./"><span class="brandmark">M<span>R</span></span> My Reintegration</a><div class="actions"><button id="shareView">Share link</button><button id="settings">Settings & backup</button></div></header>
+<header><a class="brand" href="./?edit=1"><span class="brandmark">M<span>R</span></span> My Reintegration</a><div class="actions"><button id="shareView">Share link</button><button id="settings">Settings & backup</button></div></header>
 <main><div class="sync-bar"><span id="syncStatus" role="status" aria-live="polite">Loading journal…</span><div class="actions"><button id="connect">Connect Google</button><button id="refresh" hidden>Refresh</button><button id="signout" hidden>Sign out</button><button id="retry" hidden>Retry pending save</button><button id="pendingBackup" hidden>Export pending backup</button><button id="resolvePending" hidden>Review conflict</button></div></div><div class="intro"><div><p class="eyebrow">YOUR PERSONAL WORK JOURNAL</p><h1>A clearer view of your week.</h1><p class="muted">Record your activities, keep track of applications, and share your progress.</p></div><div class="actions"><button class="primary" id="report">Weekly report ↗</button><button id="allData">All data & downloads</button></div></div>
 <div id="loadMessage" class="load-message" role="status" hidden></div><p id="dataSummary" class="data-summary" aria-live="polite"></p><section class="week-panel"><div class="week-top"><div><p class="eyebrow">WEEK OVERVIEW</p><h2 id="weekTitle"></h2></div><div class="actions"><button id="prev" aria-label="Previous week">←</button><button id="today">This week</button><button id="latest">Latest activity</button><button id="next" aria-label="Next week">→</button><label class="jump">Go to date<input type="date" id="jump"></label></div></div><div id="days" class="days"></div></section>
 <div class="stats"><div><span class="muted">Time recorded</span><strong id="total"></strong><span id="goalText"></span><progress id="progress" max="100" value="0"></progress><small>Includes time spent on incomplete activities.</small></div><div><span class="muted">Activities this week</span><strong id="count"></strong><span id="completed"></span></div><div><span class="muted">Applications this week</span><strong id="appCount"></strong><span>Based on date of application</span></div></div>
@@ -295,7 +295,7 @@ $('#days').onclick=e=>{const b=e.target.closest('[data-day]');if(b){selected=b.d
 $('#latest').onclick=()=>{selected=latestDate();week=monday(selected);view='activities';render()};
 $('#prev').onclick=()=>{week=plus(week,-7);selected=plus(selected,-7);render()};$('#next').onclick=()=>{week=plus(week,7);selected=plus(selected,7);render()};$('#today').onclick=()=>{selected=iso(new Date());week=monday(selected);render()};$('#jump').onchange=e=>{if(validDate(e.target.value)){selected=e.target.value;week=monday(selected);render()}};$('#activityTab').onclick=()=>{view='activities';render()};$('#applicationTab').onclick=()=>{view='applications';render()};$('#add').onclick=()=>openEditor();document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$('#'+b.dataset.close).close());
 $('#settings').onclick=()=>{for(const k of ['goal','recipient','name'])$('#settingsForm').elements[k].value=state.settings[k];$('#preferences').showModal()};$('#settingsForm').onsubmit=async e=>{e.preventDefault();const next=structuredClone(state);next.settings=Object.fromEntries(new FormData(e.target));next.settings.goal=Number(next.settings.goal);if(await persist(next)){$('#preferences').close();render();toast('Settings saved.')}};
-function download(content,name,type){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([content],{type}));a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000)}
+function download(content,name,type){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([content],{type}));a.href=url;a.download=name;a.hidden=true;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 const backup=()=>download(JSON.stringify(state,null,2),`my-reintegration-backup-${iso(new Date())}.json`,'application/json');$('#backup').onclick=backup;
 function comparable(r){return JSON.stringify(Object.fromEntries(Object.entries(r).filter(([k])=>!['createdAt','updatedAt'].includes(k)).sort(([a],[b])=>a.localeCompare(b))))}
 async function migrationId(r){const bytes=new TextEncoder().encode(comparable(r));return 'migrated-'+Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('').slice(0,48)}
@@ -356,13 +356,15 @@ $('#excel').onclick=()=>download(JournalExcel.create(exportRows('activities'),ex
 window.addEventListener('online',()=>{if(cloud.role&&!cloud.hasPending&&!$('#editor').open)refreshCloud()});
 setInterval(()=>{if(cloud.role&&!cloud.hasPending&&!saveBusy&&!document.querySelector('dialog[open]'))refreshCloud()},60000);
 render();
-</script><script>// Share a stable, read-only link that preserves the selected date.
+</script><script>// Share a stable, read-only link that opens recorded work when available.
 'use strict';
 (()=>{
  const dialog=$('#accessManager'),error=$('#accessError');
  function shareUrl(){
   const url=new URL(window.MR_GOOGLE_CONFIG?.publicUrl||'https:\x2f\x2fservicehubbotia-glitch.github.io/My-Reintegration/');
-  url.searchParams.set('date',selected);return url.href;
+  const dates=allDates(),start=monday(selected),end=plus(start,6);
+  const sharedDate=dates.includes(selected)?selected:dates.find(d=>d>=start&&d<=end)||latestDate();
+  url.searchParams.set('date',sharedDate);return url.href;
  }
  function open(){const url=shareUrl();$('#sharedViewUrl').value=url;$('#openSharedView').href=url;error.textContent='';dialog.showModal()}
  cloud.onStatus(()=>{$('#privateAccess').hidden=cloud.role!=='owner'});
@@ -372,7 +374,7 @@ render();
   catch{$('#sharedViewUrl').select();error.textContent='The link is selected. Copy it from this field.'}
  };
 })();
-</script><script>// The public journal loads once, navigates immediately, and refreshes before exports.
+</script><script>// The public journal uses its confirmed snapshot for navigation and downloads.
 'use strict';
 (()=>{
  if(!cloud?.guest)return;
@@ -424,13 +426,21 @@ render();
  }
  const change=$('#jump').onchange;
  $('#jump').onchange=e=>{if(!cloud.role)return;change(e);remember()};
- for(const [id,operation] of [['report','report'],['allData','report'],['pdf','export.pdf'],['excel','export.xlsx'],['csv','export.csv'],['copy','export.copy']]){
-  const handler=$('#'+id).onclick;$('#'+id).onclick=e=>load(operation,handler,e);
+ for(const id of ['report','allData','pdf','excel','csv','copy']){
+  const handler=$('#'+id).onclick;
+  $('#'+id).onclick=e=>{
+   if(!cloud.role)return toast('Load the journal with Refresh before opening or downloading a report.');
+   return handler?.(e);
+  };
  }
  $('#refresh').onclick=()=>load();
  document.querySelector('.intro p.muted').textContent='Activities, courses and applications — view the recorded work and download a report.';
- document.querySelector('footer').textContent='Shared read-only journal. Download the selected week or all recorded data as a spreadsheet, PDF or CSV. Records are refreshed before each download.';
- document.querySelector('.brand').href=window.MR_GOOGLE_CONFIG?.publicUrl||'https:\x2f\x2fservicehubbotia-glitch.github.io/My-Reintegration/';
+ document.querySelector('footer').textContent='Shared read-only journal. Download the selected week or all recorded data as a spreadsheet, PDF or CSV. Reports use the loaded records. Select Refresh to load the latest records.';
+ const publicUrl=window.MR_GOOGLE_CONFIG?.publicUrl||'https:\x2f\x2fservicehubbotia-glitch.github.io/My-Reintegration/';
+ document.querySelector('.brand').href=publicUrl;
+ const editUrl=new URL(publicUrl);editUrl.search='';editUrl.hash='';editUrl.searchParams.set('edit','1');
+ const editLink=document.createElement('a');editLink.href=editUrl.href;editLink.textContent='Edit my journal';
+ document.querySelector('footer').append(document.createTextNode(' '),editLink);
  window.addEventListener('pagehide',()=>cloud.disconnect());
  window.addEventListener('pageshow',e=>{if(e.persisted)load()});
  load();

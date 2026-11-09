@@ -1,4 +1,4 @@
-// The public journal loads once, navigates immediately, and refreshes before exports.
+// The public journal uses its confirmed snapshot for navigation and downloads.
 'use strict';
 (()=>{
  if(!cloud?.guest)return;
@@ -50,13 +50,21 @@
  }
  const change=$('#jump').onchange;
  $('#jump').onchange=e=>{if(!cloud.role)return;change(e);remember()};
- for(const [id,operation] of [['report','report'],['allData','report'],['pdf','export.pdf'],['excel','export.xlsx'],['csv','export.csv'],['copy','export.copy']]){
-  const handler=$('#'+id).onclick;$('#'+id).onclick=e=>load(operation,handler,e);
+ for(const id of ['report','allData','pdf','excel','csv','copy']){
+  const handler=$('#'+id).onclick;
+  $('#'+id).onclick=e=>{
+   if(!cloud.role)return toast('Load the journal with Refresh before opening or downloading a report.');
+   return handler?.(e);
+  };
  }
  $('#refresh').onclick=()=>load();
  document.querySelector('.intro p.muted').textContent='Activities, courses and applications — view the recorded work and download a report.';
- document.querySelector('footer').textContent='Shared read-only journal. Download the selected week or all recorded data as a spreadsheet, PDF or CSV. Records are refreshed before each download.';
- document.querySelector('.brand').href=window.MR_GOOGLE_CONFIG?.publicUrl||'https://servicehubbotia-glitch.github.io/My-Reintegration/';
+ document.querySelector('footer').textContent='Shared read-only journal. Download the selected week or all recorded data as a spreadsheet, PDF or CSV. Reports use the loaded records. Select Refresh to load the latest records.';
+ const publicUrl=window.MR_GOOGLE_CONFIG?.publicUrl||'https://servicehubbotia-glitch.github.io/My-Reintegration/';
+ document.querySelector('.brand').href=publicUrl;
+ const editUrl=new URL(publicUrl);editUrl.search='';editUrl.hash='';editUrl.searchParams.set('edit','1');
+ const editLink=document.createElement('a');editLink.href=editUrl.href;editLink.textContent='Edit my journal';
+ document.querySelector('footer').append(document.createTextNode(' '),editLink);
  window.addEventListener('pagehide',()=>cloud.disconnect());
  window.addEventListener('pageshow',e=>{if(e.persisted)load()});
  load();
