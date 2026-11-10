@@ -26,7 +26,7 @@ async function legacySuite(source){
  const h=setup(source,{legacy:true}),{cloud,calls,timers}=h;
  assert.deepEqual(h.removed,['my-reintegration-guest-access-v1']);assert.ok(h.classes.has('guest-view'));assert.equal(cloud.publicLink,true);
  assert.equal(h.events[0].status,'Loading journal…');
- let pending=cloud.connect();assert.equal(cloud.refresh(),pending);assert.equal(cloud.authorizedRead('read','2026-11-02'),pending);
+ let pending=cloud.connect();assert.equal(cloud.refresh(),pending);assert.equal(cloud.authorizedRead('read'),pending);
  assert.deepEqual(Object.keys(calls[0].request).sort(),['operation','week']);assert.equal(calls[0].request.operation,'read');assert.equal(cloud.role,'');
  calls.shift().success(accepted);assert.equal((await pending).activities[0].activity,'Isolated record');assert.equal(cloud.role,'reader');assert.equal(cloud.loading,false);
  for(const method of ['commit','retry','discardPending'])await assert.rejects(cloud[method]({}),/Read-only/);
@@ -45,8 +45,9 @@ async function jsonpSuite(source){
  let pending=cloud.connect();assert.equal(cloud.refresh(),pending);assert.equal(scripts.length,1);
  let script=scripts.at(-1),url=new URL(script.src),callback=h.callback(script);
  assert.equal(url.origin,'https://script.google.com');assert.equal(url.pathname,'/macros/s/deployment_example/exec');
- assert.match(callback,/^MR_read_[a-z0-9_]{1,80}$/);assert.equal(url.searchParams.get('operation'),'read');assert.equal(script.referrerPolicy,'no-referrer');
+ assert.match(callback,/^MR_read_[a-z0-9_]{1,80}$/);assert.equal(url.searchParams.get('operation'),'read');assert.equal(script.referrerPolicy,'no-referrer');assert.equal(url.searchParams.get('week'),null);
  h.succeed(script);await pending;assert.equal(cloud.role,'reader');assert.equal(script.removed,true);assert.equal(window[callback],undefined);assert.equal(timers.jobs.size,0);
+ pending=cloud.authorizedRead('read','2026-11-02');script=scripts.at(-1);url=new URL(script.src);assert.equal(url.searchParams.get('week'),'2026-11-02');h.succeed(script);await pending;
  pending=cloud.authorizedRead('export.pdf','2026-11-02');script=scripts.at(-1);url=new URL(script.src);assert.equal(url.searchParams.get('operation'),'export.pdf');assert.equal(url.searchParams.get('week'),'2026-11-02');h.succeed(script);await pending;
  pending=cloud.refresh();script=scripts.at(-1);callback=h.callback(script);script.onerror();await flush();assert.equal(script.removed,true);assert.equal(window[callback],undefined);await timers.tick(600);
  const recovered=scripts.at(-1);assert.notEqual(h.callback(recovered),callback);h.succeed(recovered);await pending;assert.equal(cloud.role,'reader');
