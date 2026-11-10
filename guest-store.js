@@ -69,10 +69,11 @@
   }
   function request(operation='read',week){
    if(!operations.has(operation))return Promise.reject(failure('FORBIDDEN','Read-only view. Changes are not permitted.'));
-   if(operation!=='read'&&(typeof week!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(week)))
-    return Promise.reject(failure('INVALID','Choose a report week before downloading.'));
-   // A read always returns the complete snapshot, so navigation and refresh can share it.
-   const key=operation==='read'?'read':operation+':'+week;
+   if((week!==undefined&&(typeof week!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(week)))
+    ||(operation!=='read'&&week===undefined))
+    return Promise.reject(failure('INVALID','Choose a valid report week before requesting data.'));
+   // Public results are limited to a single week; an unscoped read selects the latest week.
+   const key=operation+':'+(week||'latest');
    if(inflight.has(key))return inflight.get(key);
    const version=epoch;
    loading=true;signal(role?'Refreshing…':'Loading journal…');
