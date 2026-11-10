@@ -113,7 +113,7 @@ async function deniedAndDelayed(source){
  pending=delayed.cloud.connect();delayed.locationCalls[1](delayed.location);delayed.calls.shift().success(accepted);await pending;assert.equal(delayed.cloud.role,'reader');
 }
 function viewHarness(source){
- const h=setup(source),nodes=new Map(),handlers={},toasts=[],actions=[];
+ const h=setup(source),nodes=new Map(),handlers={},toasts=[],actions=[],downloadClears=[];
  const node=id=>{if(!nodes.has(id))nodes.set(id,{id,value:'',textContent:'',hidden:false,open:false,onclick:()=>actions.push(id),onchange:()=>actions.push(id),
   close(){this.open=false},append(){}});return nodes.get(id)};
  const empty=()=>({version:1,settings:{goal:20,recipient:'',name:''},activities:[],applications:[]});
@@ -123,6 +123,7 @@ function viewHarness(source){
  Object.assign(ctx,{cloud:h.cloud,state:empty(),selected:'2026-11-10',week:'2026-11-09',reportScope:'week',empty,plus,monday,
   validDate:s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s),validate:data=>JSON.parse(JSON.stringify(data)),
   $:selector=>node(selector.slice(1)),toast:message=>toasts.push(message),
+  clearPreparedDownload:()=>downloadClears.push(true),
   render:()=>{node('records').textContent=JSON.stringify(ctx.state);node('dataSummary').textContent=String(ctx.state.activities.length)},
   fillReport:()=>{node('reportText').textContent=JSON.stringify(ctx.state)},
   allDates:()=>[...ctx.state.activities,...ctx.state.applications].map(r=>r.date).sort(),
@@ -134,7 +135,7 @@ function viewHarness(source){
  h.document.createElement=tag=>{assert.equal(tag,'a');return node('created-link')};h.document.createTextNode=text=>text;
  h.window.addEventListener=(type,handler)=>handlers[type]=handler;
  h.window.history={replaceState:()=>{throw Error('Do not rewrite the HTMLService iframe address')}};
- return {...h,node,handlers,toasts,actions};
+ return {...h,node,handlers,toasts,actions,downloadClears};
 }
 async function viewSuite(storeSource,viewSource){
  for(const mode of ['demo','editor'])vm.runInNewContext(viewSource,{window:{MR_MODE:mode}});
@@ -149,7 +150,9 @@ async function viewSuite(storeSource,viewSource){
  let refresh=node('refresh').onclick();const concurrent=node('refresh').onclick();assert.equal(calls.length,1);
  calls.shift().success(accepted);await refresh;await concurrent;assert.equal(ctx.week,'2026-10-26','Refreshing must preserve the selected historical week');
  node('emailTo').value='isolated@example.invalid';node('emailSubject').value='Isolated';node('emailBody').value='Isolated';
+ const beforeDownloadClear=h.downloadClears.length;
  refresh=node('refresh').onclick();calls.shift().success({ok:false,code:'FORBIDDEN',message:TOKEN});await refresh;
+ assert.ok(h.downloadClears.length>beforeDownloadClear,'Denied access must clear any prepared download');
  assert.equal(cloud.role,'');assert.equal(ctx.state.activities.length,0);assert.equal(ctx.state.applications.length,0);
  assert.equal(node('reportDialog').open,false);assert.equal(node('reportText').textContent,'');assert.equal(node('reportRange').textContent,'');
  for(const id of ['emailTo','emailSubject','emailBody'])assert.equal(node(id).value,'');
