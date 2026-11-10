@@ -50,7 +50,7 @@ window.JournalExcel = (()=>{
  applications.forEach(r=>appendData([day(r.date),r.function,r.company,r.via,r.conversation,r.interview?day(r.interview):'',r.withWhom,r.phone,r.result]));
  while(rows.length<16)rows.push([]);
  const section=rows.length+1;rows.push(['Activity']);
- rows.push(['What activity did you do?','Date','What was the result/outcome of this activity for you?','','','Result (Completed Yes or No)','Duration',recipient?'Mail to '+recipient:'Mail to Urszula','']);
+ rows.push(['What activity did you do?','Date','What was the result/outcome of this activity for you?','','','Result (Completed Yes or No)','Duration',recipient?'Mail to '+recipient:'Mail to report recipient','']);
  const start=rows.length+1;
  const activitySpans=[[2,4],[7,8]];
  merges.push(`A${section}:I${section}`,`C${section+1}:E${section+1}`,`H${section+1}:I${section+1}`);

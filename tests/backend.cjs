@@ -10,8 +10,8 @@ const application=(id='test-application-0001',extra={})=>({id,date:'2026-11-03',
 
 function fixture(){
  let identity=owner,canEdit=true,publicSharing='',sequence=0;
- let data=[[],[],[['Key','Value','Updated at'],['Weekly goal',20],['Report recipient',''],['User display name',''],['Schema version',2]]];
- const ids=[201,202,203],names=['Activities','Applications','Settings'],batches=[];
+ let data=[[],[],[['Key','Value','Updated at'],['Weekly goal',20],['Report recipient',''],['User display name',''],['Schema version',2]],[['Access ID','Token hash','Expires at','Revoked at','Created at']],[['Timestamp','Access ID','Operation','Result']]];
+ const ids=[201,202,203,204,205],names=['Activities','Applications','Settings','AccessGrants','AccessLog'],batches=[];
  const properties={SPREADSHEET_ID:'isolated-test',OWNER_EMAIL:owner,EDITOR_EMAILS:'[" Editor@Example.Invalid "]',READER_EMAILS:JSON.stringify([reader])};
  const context={
   Session:{getEffectiveUser:()=>({getEmail:()=>identity})},
@@ -19,7 +19,7 @@ function fixture(){
   LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock(){}})},
   Utilities:{DigestAlgorithm:{SHA_256:1},computeDigest:(_,s)=>[...crypto.createHash('sha256').update(s).digest()]},
   Drive:{Files:{get:()=>({mimeType:'application/vnd.google-apps.spreadsheet',owners:[{emailAddress:owner}],capabilities:{canEdit}})},Permissions:{list:()=>({permissions:publicSharing?[{type:publicSharing,role:'reader'}]:[{type:'user',role:'owner'}]})}},
-  Sheets:{Spreadsheets:{get:()=>({sheets:names.map((title,i)=>({properties:{title,sheetId:ids[i]}}))}),Values:{batchGet:()=>({valueRanges:data.map(values=>({values:structuredClone(values)}))})}}}
+  Sheets:{Spreadsheets:{get:()=>({sheets:names.map((title,i)=>({properties:{title,sheetId:ids[i]}}))}),Values:{batchGet:()=>({valueRanges:data.slice(0,3).map(values=>({values:structuredClone(values)}))}),get:(_,range)=>({values:structuredClone(data[names.findIndex(name=>range.startsWith("'"+name+"'!"))])})}}}
  };
  context.Sheets.Spreadsheets.batchUpdate=({requests})=>{
   const next=structuredClone(data),values=row=>Array.from(row.values,c=>c.userEnteredValue.stringValue??c.userEnteredValue.numberValue);
@@ -74,7 +74,7 @@ test('owner and normalized editor allowlist both support activity/application CR
  }
 });
 
-test('reader/unknown denied writes; editor requires Drive canEdit and cannot manage access',()=>{
+test('reader/unknown denied writes and access management; editor requires Drive canEdit',()=>{
  const f=fixture(),base=seed(f),request=f.request([put('activities',activity('test-activity-0002'))],base);
  f.identity=reader;assert.equal(f.read().role,'reader');assert.equal(f.read().data.activities.length,1);
  rejected(f,request,'FORBIDDEN');
@@ -83,8 +83,23 @@ test('reader/unknown denied writes; editor requires Drive canEdit and cannot man
  }
  f.identity=editor;f.canEdit=false;assert.equal(f.read().code,'FORBIDDEN');rejected(f,request,'FORBIDDEN');
  f.canEdit=true;assert.equal(f.read().role,'editor');
+ f.identity=reader;
  for(const operation of ['list','create','revoke'])rejected(f,{action:'access',operation,id:'test-access-0001',digest:'a'.repeat(64),expiresAt:new Date(Date.now()+86400000).toISOString()},'FORBIDDEN');
  f.identity=owner;f.canEdit=false;rejected(f,request,'FORBIDDEN');
+});
+
+test('both authorized editor identities can create, list and revoke read-only links',()=>{
+ for(const identity of [owner,editor]){
+  const f=fixture();f.identity=identity;
+  const grant={id:'test-access-0001',digest:'a'.repeat(64),expiresAt:new Date(Date.now()+86400000).toISOString()};
+  assert.deepEqual(f.call({action:'access',operation:'list'}).grants,[]);
+  const created=f.call({action:'access',operation:'create',...grant});assert.equal(created.ok,true,created.message);
+  assert.equal(created.grants.length,1);assert.equal(created.grants[0].id,grant.id);
+  assert.equal(JSON.stringify(created).includes(grant.digest),false,'Hash must not be returned to the browser');
+  const written=f.batches.length;assert.equal(f.call({action:'access',operation:'create',...grant}).ok,true);assert.equal(f.batches.length,written,'Create retry is idempotent');
+  const revoked=f.call({action:'access',operation:'revoke',id:grant.id});assert.equal(revoked.ok,true,revoked.message);assert.ok(revoked.grants[0].revokedAt);
+  assert.equal(f.data[0].length,1);assert.equal(f.data[1].length,1,'Access management must not change activity/application rows');
+ }
 });
 
 test('public sharing and malformed editor configuration fail closed',()=>{

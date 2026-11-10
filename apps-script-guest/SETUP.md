@@ -1,33 +1,35 @@
-# Shared read-only view
+# Private read-only journal
 
-The owner explicitly approved access for **anyone with the link** on 9 October 2026. This replaces the token login used in versions 1–3. Readers open the link directly: no account, email, access code, expiry or remembered credential is required. The link may be forwarded like an exported workbook.
+## Approved behaviour
 
-## Deployment boundary
+The report recipient may consult and download every week. The public portfolio receives fictional demonstration data. The original restricted Sheet and authenticated editing service remain shared sources for all real records.
 
-Keep this project separate from the owner API executable. Its only remotely callable functions are `doGet` and `guestRequest`; helper names end in underscore. The guest service accepts only `read`, `report`, `export.pdf`, `export.xlsx`, `export.csv` and `export.copy`. It has no journal mutation entrypoint. Owner editing remains Google-authenticated and MYSELF-only.
+The existing reader web-app deployment remains executable as the deploying account and reachable without Google login, but **every data read requires an active private token**. Keeping the web-app shell reachable is necessary for a recipient without a Google account. Anonymous shell access does not authorize data access.
 
-The original spreadsheet stays Restricted. Its ID and owner email remain in private Script Properties (`SPREADSHEET_ID`, `OWNER_EMAIL`). The guest web app executes as the owner and exposes the journal's read-only snapshots through its URL; it does not grant Drive or spreadsheet permissions. The private report-recipient setting is omitted from shared snapshots. Records themselves, including application fields and report display name, are visible to anyone with the URL.
+## Files and properties
 
-Enable Sheets v4 and Drive v3 and retain the existing manifest scopes. Deploy as an Apps Script web application, execute as the owner, accessible to anyone without Google sign-in. The service URL belongs in `google-config.js` as `guestUrl`; `publicUrl` is the permanent GitHub Pages journal URL. `doGet` accepts a strictly validated `MR_read_...` callback to serve the existing read-only operations to that page. Invalid callbacks and duplicate parameters are rejected. Without a callback, the same deployment still serves `View` for older links. The Share link control on the journal and in owner settings copies the GitHub Pages address with the selected date.
+1. Run `node scripts/build-guest.cjs` from the repository root.
+2. In the existing reader project, replace `Guest.gs`, generated `ReadHelpers.gs`, generated `View.html`, and retain the reviewed `appsscript.json`.
+3. Preserve private `SPREADSHEET_ID` and `OWNER_EMAIL` Script Properties, the advanced Sheets v4 and Drive v3 services, existing scopes and Restricted source sharing.
+4. Never copy the owner `journal`, `manageAccess_` or mutation helpers into the reader project.
 
-The deployed project contains `Guest.gs`, `ReadHelpers.gs`, `View.html` and `appsscript.json`. Run `node scripts/build-guest.cjs` to regenerate the interface and read helpers. The build hex-escapes URL slashes in inline scripts for HTMLService compatibility; this preserves Excel workbook values.
+The registry is the original Sheet's existing `AccessGrants` tab (`Access ID`, `Token hash`, `Expires at`, `Revoked at`, `Created at`). `AccessLog` contains timestamp, grant ID, fixed operation and result. No real records, tokens or hashes appear in audit rows.
 
-## Data and audit
+## Private links
 
-Every view refresh or export fetches the latest snapshot from the original spreadsheet. `AccessLog` records a fixed `link-reader` identifier, operation and result; it does not identify the human reader. Unknown operations are rejected and logged without their raw input. An audit failure prevents release of the response.
+The authorized editor creates links in **Share private access**. A 32-byte random token is encoded as 43 base64url characters. Its SHA-256 digest uses `JSON.stringify(token)`, matching the existing owner registry. Only the digest is saved to the Sheet; copy the generated private link before leaving the signed-in page.
 
-The guest service no longer reads `AccessGrants`. Existing revoked test grants and previous logs remain as historical records. The owner API's legacy token functions remain owner-only but are no longer shown in the interface. They do not restrict the shared link. To withdraw this direct view, archive its Apps Script deployment; changing the sheet's owner editing access is a separate operation.
+A link has the form `EXISTING_READER_DEPLOYMENT#access=TOKEN&date=YYYY-MM-DD`. The date only selects the initial view; the active permission covers all weeks. The token is not a query parameter. HTMLService reads the top-level fragment through `google.script.url.getLocation`, then uses `google.script.run` for data. The Google-hosted iframe never relies on its own location fragment for the permission.
 
-No credentials or journal data are persisted by the guest transport. It removes the old remembered-access key during startup. Google may apply ordinary service limits to the public web app. No synthetic records are added to the real journal for tests.
+No JSONP response may carry real records. Requests containing a callback are rejected without reading the journal. Revoked, expired, missing and malformed permissions cannot load journal records. Reads recheck authorization so revocation during data loading or auditing fails closed.
 
-## Verification
+## Release order and verification
 
-`node tests/guest-backend.cjs` checks credential-free reading/export, rejected mutation attempts, absence of CRUD entrypoints, original-sheet privacy, omission of the private report recipient, generic audit rows and independence from token grants. Owner token-management authorization is separately checked as a legacy function.
+- Verify the candidate with all isolated tests and browser flows first.
+- Update the existing owner API version to allow both already-authorized editing roles to manage read-only links. Its data-writing authorization and personal editor configuration remain intact.
+- Prepare the recipient's private link and retain it privately. Coordinate the link change with the owner; do not email anyone automatically.
+- Update the **existing** reader deployment to the new version, preserving its deployment URL. Verify the private link opens the complete real journal, and anonymous/old JSONP reads return no records.
+- Publish the public Pages demonstration and editor. Verify default/dated public URLs contain only fictional examples and no request to the real data service. Verify `?edit=1` remains the authorized editor.
+- Check a historical week and an all-history download through the private link. Verify refresh, denied/revoked access and mobile rendering. Do not use live personal records as test fixtures.
 
-`node tests/guest-store.cjs` checks automatic transport without credentials, cleanup of old remembered credentials, no mutation API, failure recovery and stale responses. `node tests/excel.cjs` verifies identical XLSX bytes from the original and generated inline exporter. These isolated tests do not substitute for live deployment checks.
-
-Live version 4 was deployed on 9 October 2026. Opening the existing URL loaded the journal automatically without entering a token or choosing a reader account. The report, PDF and XLSX all succeeded; the downloaded PDF was opened and visually checked, and the XLSX parsed as a real workbook with the expected Blad1 sheet. The actual week was empty. AccessLog independently confirmed the direct read, report and both exports as `link-reader`. Drive metadata still showed only the spreadsheet owner's permission. A separate signed-out browser session and a live write-RPC penetration test were not performed; the deployed reader code has no Google-identity check, and write rejection is covered by isolated service tests.
-
-## 9 November 2026 update
-
-The default GitHub Pages entry no longer redirects to Google Apps Script. Update the existing web-app deployment when changing the reader backend, then publish GitHub Pages; the stable public URL remains unchanged. The interface starts at the latest recorded date, supports dated links and exports all recorded data as well as individual weeks. The original spreadsheet stays Restricted. Report copies and attachments exclude Settings, AccessGrants and AccessLog.
+Do not publish the frontend alone and describe the system as private: the backend restriction must also be deployed and checked. If publication needs to be paused, keep the tested candidate on its separate branch. Do not roll back to a reader version that releases the journal anonymously.

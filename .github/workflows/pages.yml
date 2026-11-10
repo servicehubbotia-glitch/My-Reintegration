@@ -25,6 +25,9 @@ jobs:
       - name: Check JavaScript syntax
         run: |
           node --check app.js
+          node --check demo-store.js
+          node --check demo-view.js
+          node tests/demo-store.cjs
           node --check google-store.js
           node tests/google-store.cjs
           node --check guest-store.js
@@ -39,6 +42,7 @@ jobs:
           python3 -m http.server 8765 &
           node tests/cloud-browser.cjs
           node tests/guest-browser.cjs
+          node tests/demo-browser.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -47,7 +51,7 @@ jobs:
       - name: Package public application only
         run: |
           mkdir _site
-          cp index.html style.css app.js google-config.js google-store.js guest-store.js guest-view.js excel-export.js access-admin.js _site/
+          cp index.html style.css app.js google-config.js google-store.js guest-store.js guest-view.js demo-store.js demo-view.js excel-export.js access-admin.js _site/
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
