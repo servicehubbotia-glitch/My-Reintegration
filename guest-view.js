@@ -35,22 +35,34 @@
    if(!initialized){document.body.dataset.journalState='loading';$('#loadMessage').hidden=false;$('#loadMessage').textContent='Loading recorded activities and applications…'}
   }else clear(event.message);
  });
- async function load(operation='read',handler,event){
+ function initialWeek(){
+  const requestedDate=requested.get('date')||window.MR_INITIAL_DATE||requested.get('week');
+  return validDate(requestedDate)?monday(requestedDate):undefined;
+ }
+ async function load(operation='read',handler,event,targetWeek){
   try{
-   state=validate(await cloud.authorizedRead(operation,week));
-   if(!initialized){selected=firstDate();week=monday(selected);initialized=true;remember()}
+   const chosen=targetWeek===null?undefined:(targetWeek??(initialized?week:initialWeek()));
+   state=validate(await cloud.authorizedRead(operation,chosen));
+   if(!initialized){selected=firstDate();week=monday(selected);initialized=true}
+   else if(targetWeek===null){selected=latestDate();week=monday(selected)}
+   remember();
    document.body.dataset.journalState='ready';$('#loadMessage').hidden=true;render();
    if($('#reportDialog').open)fillReport();
    return await handler?.(event);
   }catch(e){clear(e.message);toast(e.message)}
  }
- for(const id of ['prev','next','today','latest','activityTab','applicationTab','days']){
+ for(const id of ['activityTab','applicationTab','days']){
   const handler=$('#'+id).onclick;
   $('#'+id).onclick=e=>{if(!cloud.role)return;handler?.(e);remember()};
  }
+ for(const id of ['prev','next','today']){
+  const handler=$('#'+id).onclick;
+  $('#'+id).onclick=e=>{if(!cloud.role)return;handler?.(e);remember();load('read',undefined,undefined,week)};
+ }
+ $('#latest').onclick=()=>{if(cloud.role)load('read',undefined,undefined,null)};
  const change=$('#jump').onchange;
- $('#jump').onchange=e=>{if(!cloud.role)return;change(e);remember()};
- for(const id of ['report','allData','pdf','excel','csv','copy']){
+ $('#jump').onchange=e=>{if(!cloud.role)return;change(e);remember();load('read',undefined,undefined,week)};
+ for(const id of ['report','pdf','excel','csv','copy']){
   const handler=$('#'+id).onclick;
   $('#'+id).onclick=e=>{
    if(!cloud.role)return toast('Load the journal with Refresh before opening or downloading a report.');
@@ -58,8 +70,10 @@
   };
  }
  $('#refresh').onclick=()=>load();
- document.querySelector('.intro p.muted').textContent='Activities, courses and applications — view the recorded work and download a report.';
- document.querySelector('footer').textContent='Shared read-only journal. Download the selected week or all recorded data as a spreadsheet, PDF or CSV. Reports use the loaded records. Select Refresh to load the latest records.';
+ $('#allData').hidden=true;
+ document.querySelector('#reportScope option[value="all"]')?.remove();
+ document.querySelector('.intro p.muted').textContent='Activities, courses and applications — view a selected week and download its report.';
+ document.querySelector('footer').textContent='Shared read-only journal. Only the selected week is provided by the public reader. Contact details are hidden. Select Refresh to load updates.';
  const publicUrl=window.MR_GOOGLE_CONFIG?.publicUrl||'https://servicehubbotia-glitch.github.io/My-Reintegration/';
  document.querySelector('.brand').href=publicUrl;
  const editUrl=new URL(publicUrl);editUrl.search='';editUrl.hash='';editUrl.searchParams.set('edit','1');
