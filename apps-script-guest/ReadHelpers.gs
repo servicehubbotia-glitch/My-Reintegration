@@ -40,7 +40,9 @@ function validateRecord_(kind,r){
 }
 function validateSettings_(s){if(!s||!Number.isFinite(s.goal)||s.goal<.25||s.goal>168||typeof s.name!=='string'||s.name.length>200||typeof s.recipient!=='string'||s.recipient.length>320||s.recipient&& !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.recipient))fail_('INVALID','Invalid settings.')}
 
+const ACCESS_HEADERS_=['Access ID','Token hash','Expires at','Revoked at','Created at'];
 const LOG_HEADERS_=['Timestamp','Access ID','Operation','Result'];
 function accessLog_(id,sheetId,accessId,operation,allowed){
  Sheets.Spreadsheets.batchUpdate({requests:[{appendCells:{sheetId,rows:[{values:[new Date().toISOString(),accessId,operation,allowed?'authorized':'rejected'].map(cell_)}],fields:'userEnteredValue'}}]},id);
 }
+function equalHash_(a,b){let diff=a.length^b.length;for(let i=0;i<64;i++)diff|=(a.charCodeAt(i)||0)^(b.charCodeAt(i)||0);return diff===0}

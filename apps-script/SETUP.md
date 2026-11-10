@@ -4,7 +4,7 @@ The owner-only API executable has been deployed and the original spreadsheet is 
 
 ## Owner and authorized-editor setup
 
-As of 9 October 2026, version 2 of the owner-only API executable includes token grant management. Live creation, listing and revocation were verified. The separate reader web app now opens directly for anyone with its link, as explicitly approved by the owner; see [guest deployment status](../apps-script-guest/SETUP.md). Google-identity reader access described below remains disabled.
+As of 9 October 2026, the API executable includes token grant management. The privacy separation candidate lets both already-authorized editing roles create, list and revoke read-only links. The separate reader requires an active private link; see [reader deployment](../apps-script-guest/SETUP.md). Google-identity reader access described below remains optional and disabled unless explicitly configured.
 
 1. In the existing spreadsheet, change General access to **Restricted**. Keep its ID and folder. The service deliberately refuses a spreadsheet with anyone/domain permissions.
 2. Open Extensions → Apps Script from that spreadsheet. Add `Code.gs` and the manifest from this directory. Configure Script Properties: `SPREADSHEET_ID` for the original spreadsheet and `OWNER_EMAIL` for its verified owner. Configure `EDITOR_EMAILS` as a JSON array containing the user's explicitly authorized additional editing identity, with Editor access to this same Sheet. The owner already retains maintenance editing. Leave `READER_EMAILS` absent (no authenticated reader access).
@@ -42,3 +42,7 @@ The original attachment `activiteiten dag boek, activity log (ENG).xlsx` was rea
 The attachment's text was readable; binary download returned HTTP 403. Exact original visual formatting, merged cells and embedded images therefore remain unverified. The output is a real OOXML workbook independently parsed with openpyxl; it is not a renamed CSV.
 
 Local checks: `node tests/backend.cjs`, `node tests/excel.cjs`. Backend tests use service doubles and do not prove live OAuth, CORS or Google persistence. `tests/cloud-browser.cjs` validates the integrated UI using isolated simulated Google transport. `tests/browser.cjs` is retained as a historical test of the local-only version.
+
+## Public demonstration separation
+
+The Pages root serves fictional demo records. Editing continues at `?edit=1` with the existing OAuth and API deployment IDs. The privacy release changes only `manageAccess_` in this API: owner and already-authorized editor roles can administer read-only links. Journal CRUD, record preconditions, pending-save recovery and Sheet permissions are preserved. Update the existing API deployment to the tested candidate version before enabling the new sharing UI. No new Google scopes are required.

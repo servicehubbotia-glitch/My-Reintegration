@@ -152,7 +152,7 @@ function accessLog_(id,sheetId,accessId,operation,allowed){
 function equalHash_(a,b){let diff=a.length^b.length;for(let i=0;i<64;i++)diff|=(a.charCodeAt(i)||0)^(b.charCodeAt(i)||0);return diff===0}
 
 function manageAccess_(access,r){
- if(access.role!=='owner')fail_('FORBIDDEN','Only the owner can manage private access.');
+ if(!['owner','editor'].includes(access.role))fail_('FORBIDDEN','Only an authorized editor can manage private access.');
  if(!['list','create','revoke'].includes(r.operation))fail_('INVALID','Unknown access operation.');
  const db=accessSheets_(access.id,true),rows=db.AccessGrants.rows;
  const now=new Date().toISOString();
