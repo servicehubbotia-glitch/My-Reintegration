@@ -49,4 +49,19 @@ identity='reader@example.invalid';assert.equal(admin.journal({action:'access',op
 let grants=admin.journal({action:'access',operation:'list'});assert.equal(grants.ok,true);assert.ok(!JSON.stringify(grants).includes(hash));
 const newGrant={action:'access',operation:'create',id:'new-test-access',digest:'a'.repeat(64),expiresAt:new Date(Date.now()+86400000).toISOString()};assert.equal(admin.journal(newGrant).ok,true);assert.equal(admin.journal(newGrant).ok,true);assert.equal(sheets.AccessGrants.rows.filter(r=>r[0]===newGrant.id).length,1);
 assert.equal(admin.journal({action:'access',operation:'revoke',id:'synthetic-access'}).ok,true);assert.equal(call().ok,true);
-console.log('PASS direct read-only link: credential-free reads/exports, no CRUD entrypoints, mutation attempts denied, private sheet retained, private recipient excluded, fixed audit values, no grant dependency; owner administration remains separate');
+// Public responses are week-scoped, and application contact details never leave the reader service.
+sheets.Applications.rows.push(['synthetic-application','2026-10-11','Engineer','Example Inc','Website','Private conversation','','Private contact','0600000000','Applied','2026-10-11','2026-10-11']);
+sheets.Activities.rows.push(['synthetic-0002','2026-10-20','Different week','Other','','Yes',60,'No','2026-10-20','2026-10-20']);
+const scoped=context.guestRequest({operation:'read',week:'2026-10-11'});
+assert.equal(scoped.ok,true);assert.equal(scoped.data.activities.length,1);assert.equal(scoped.data.applications.length,1);
+assert.equal(scoped.data.applications[0].phone,'');
+assert.equal(scoped.data.applications[0].withWhom,'');
+assert.equal(scoped.data.applications[0].conversation,'');
+assert.equal(scoped.data.settings.recipient,'');
+const latest=context.guestRequest({operation:'read'});
+assert.equal(latest.ok,true);assert.equal(latest.data.activities.length,1);
+assert.equal(latest.data.activities[0].date,'2026-10-20');
+assert.equal(latest.data.applications.length,0);
+assert.equal(context.guestRequest({operation:'read',week:'invalid'}).ok,false);
+assert.equal(context.guestRequest({operation:'export.xlsx'}).ok,false);
+console.log('PASS week-scoped public reader: contact redaction, private sheet retained, no CRUD, invalid requests rejected, generic audit; owner administration remains separate');
