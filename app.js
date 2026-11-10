@@ -69,9 +69,28 @@ $('#discard').onclick=()=>{if(confirm('Discard this unfinished draft? Saved reco
 $('#records').onclick=async e=>{const b=e.target.closest('button');if(!b)return;if(b.id==='emptyAdd')return openEditor();if(b.dataset.edit)openEditor(state[view].find(r=>r.id===b.dataset.edit));if(b.dataset.delete&&canEdit()&&confirm('Delete this record?')){const next=structuredClone(state);next[view]=next[view].filter(r=>r.id!==b.dataset.delete);if(await persist(next)){render();toast('Record deleted.')}}};
 $('#days').onclick=e=>{const b=e.target.closest('[data-day]');if(b){selected=b.dataset.day;view='activities';render()}};
 $('#latest').onclick=()=>{selected=latestDate();week=monday(selected);view='activities';render()};
-$('#prev').onclick=()=>{week=plus(week,-7);selected=plus(selected,-7);render()};$('#next').onclick=()=>{week=plus(week,7);selected=plus(selected,7);render()};$('#today').onclick=()=>{selected=iso(new Date());week=monday(selected);render()};$('#jump').onchange=e=>{if(validDate(e.target.value)){selected=e.target.value;week=monday(selected);render()}};$('#activityTab').onclick=()=>{view='activities';render()};$('#applicationTab').onclick=()=>{view='applications';render()};$('#add').onclick=()=>openEditor();document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$('#'+b.dataset.close).close());
+$('#prev').onclick=()=>{week=plus(week,-7);selected=plus(selected,-7);render()};$('#next').onclick=()=>{week=plus(week,7);selected=plus(selected,7);render()};$('#today').onclick=()=>{selected=iso(new Date());week=monday(selected);render()};$('#jump').onchange=e=>{if(validDate(e.target.value)){selected=e.target.value;week=monday(selected);render()}};$('#activityTab').onclick=()=>{view='activities';render()};$('#applicationTab').onclick=()=>{view='applications';render()};$('#add').onclick=()=>openEditor();document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{if(b.dataset.close==='reportDialog')clearPreparedDownload();$('#'+b.dataset.close).close()});
 $('#settings').onclick=()=>{for(const k of ['goal','recipient','name'])$('#settingsForm').elements[k].value=state.settings[k];$('#preferences').showModal()};$('#settingsForm').onsubmit=async e=>{e.preventDefault();const next=structuredClone(state);next.settings=Object.fromEntries(new FormData(e.target));next.settings.goal=Number(next.settings.goal);if(await persist(next)){$('#preferences').close();render();toast('Settings saved.')}};
-function download(content,name,type){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([content],{type}));a.href=url;a.download=name;a.hidden=true;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000)}
+let preparedDownload=null;
+function clearPreparedDownload(){
+ const current=preparedDownload;preparedDownload=null;if(!current)return;
+ clearTimeout(current.timeout);current.link.removeAttribute('href');current.container.remove();URL.revokeObjectURL(current.url);
+}
+function download(content,name,type){
+ clearPreparedDownload();
+ const a=document.createElement('a'),url=URL.createObjectURL(new Blob([content],{type}));a.href=url;a.download=name;
+ if(cloud.privateLink&&cloud.role==='reader'&&$('#reportDialog').open){
+  const container=document.createElement('p');container.id='preparedDownload';container.className='small';container.setAttribute('role','status');
+  a.textContent='Save file';a.setAttribute('aria-label','Save file '+name);
+  container.append(document.createTextNode('Download prepared. '),a);$('#reportText').before(container);
+  preparedDownload={url,link:a,container,timeout:setTimeout(clearPreparedDownload,5*60*1000)};
+  a.click();return;
+ }
+ a.hidden=true;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
+$('#reportDialog').addEventListener('close',()=>{if(!$('#reportDialog').open)clearPreparedDownload()});
+$('#reportDialog').addEventListener('cancel',clearPreparedDownload);
+window.addEventListener('pagehide',clearPreparedDownload);
 const backup=()=>download(JSON.stringify(state,null,2),`my-reintegration-backup-${iso(new Date())}.json`,'application/json');$('#backup').onclick=backup;
 function comparable(r){return JSON.stringify(Object.fromEntries(Object.entries(r).filter(([k])=>!['createdAt','updatedAt'].includes(k)).sort(([a],[b])=>a.localeCompare(b))))}
 async function migrationId(r){const bytes=new TextEncoder().encode(comparable(r));return 'migrated-'+Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('').slice(0,48)}
@@ -98,7 +117,7 @@ async function mergeBackup(incoming){
 }
 $('#import').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{if(f.size>10*1024*1024)throw Error('Backup exceeds 10 MB.');const next=validate(JSON.parse(await f.text()));if(confirm(`Merge ${next.activities.length} activities and ${next.applications.length} applications into Google Sheets? Existing records and settings will be preserved.`))await mergeBackup(next)}catch(err){toast('Import: '+err.message)}finally{e.target.value=''}};
 function reportText(){const acts=exportRows('activities'),apps=exportRows('applications');let lines=[...(cloud.demo?['DEMONSTRATION — FICTIONAL DATA. NOT A PERSONAL REPORT.','']:[]),reportScope==='all'?'RE-INTEGRATION ACTIVITIES REPORT — ALL RECORDED DATA':'WEEKLY RE-INTEGRATION ACTIVITIES REPORT',exportRange(),...(state.settings.name?[state.settings.name]:[]),'','ACTIVITY LOG'];if(!acts.length)lines.push(reportScope==='all'?'No activities recorded.':'No activities recorded for this week.');for(const r of acts)lines.push('',fmt(r.date,{weekday:'long',day:'numeric',month:'long',year:'numeric'}),r.activity,...(r.category?['Category: '+r.category]:[]),'Outcome: '+(r.outcome||'Not recorded'),'Completed: '+r.completed,'Duration: '+duration(r.minutes),'Mail to report recipient: '+r.mail);lines.push('','TOTAL TIME: '+duration(acts.reduce((s,r)=>s+r.minutes,0)),...(reportScope==='all'?[]:['Weekly goal: '+state.settings.goal+' hours']),'Recorded time includes incomplete activities.','',reportScope==='all'?'APPLICATIONS — ALL RECORDED DATA':'ONGOING APPLICATIONS — APPLIED THIS WEEK');if(!apps.length)lines.push(reportScope==='all'?'No applications recorded.':'No applications recorded for this week.');for(const r of apps)lines.push('',`Date of application: ${fmt(r.date)}`,`Function: ${r.function}`,`Company: ${r.company}`,`Via: ${r.via||'Not recorded'}`,`Conversation: ${r.conversation||'Not recorded'}`,`Interview date: ${r.interview?fmt(r.interview):'Not recorded'}`,`With whom (did you speak): ${r.withWhom||'Not recorded'}`,`Contact person's phone number: ${r.phone||'Not recorded'}`,`Result (accepted/rejected) and reason: ${r.result||'Not recorded'}`);return lines.join('\n')}
-function fillReport(){const text=reportText();$('#reportTitle').textContent=reportScope==='all'?'All recorded data':'Weekly report';$('#reportScope').value=reportScope;$('#reportRange').textContent=exportRange();$('#reportText').textContent=text;$('#emailTo').value=state.settings.recipient;$('#emailSubject').value=`Re-integration Activities Report – ${exportRange()}`;$('#emailBody').value=`Hello,\n\nPlease find below my re-integration activities report for ${exportRange()}.\n\n${text}\n\nPlease let me know if you need any further information.\n\nKind regards,\n${state.settings.name}`;}
+function fillReport(){clearPreparedDownload();const text=reportText();$('#reportTitle').textContent=reportScope==='all'?'All recorded data':'Weekly report';$('#reportScope').value=reportScope;$('#reportRange').textContent=exportRange();$('#reportText').textContent=text;$('#emailTo').value=state.settings.recipient;$('#emailSubject').value=`Re-integration Activities Report – ${exportRange()}`;$('#emailBody').value=`Hello,\n\nPlease find below my re-integration activities report for ${exportRange()}.\n\n${text}\n\nPlease let me know if you need any further information.\n\nKind regards,\n${state.settings.name}`;}
 function openReport(scope='week'){reportScope=scope;fillReport();$('#reportDialog').showModal()}
 $('#report').onclick=()=>openReport('week');$('#allData').onclick=()=>openReport('all');
 $('#reportScope').onchange=e=>{reportScope=e.target.value==='all'?'all':'week';fillReport()};
@@ -120,7 +139,7 @@ cloud.onStatus(event=>{
  accessUI();
 });
 $('#connect').onclick=async()=>{try{state=validate(await cloud.connect());render();toast(cloud.role==='reader'?'Connected with read-only access.':'Connected to your Google Sheet.')}catch(e){state=empty();render();toast(e.message)}};
-$('#signout').onclick=()=>{cloud.disconnect();state=empty();document.querySelectorAll('dialog[open]').forEach(d=>d.close());render();toast('Signed out. Pending changes remain in this browser for this account.');};
+$('#signout').onclick=()=>{clearPreparedDownload();cloud.disconnect();state=empty();document.querySelectorAll('dialog[open]').forEach(d=>d.close());render();toast('Signed out. Pending changes remain in this browser for this account.');};
 async function refreshCloud(){try{state=validate(await cloud.refresh());render();if($('#reportDialog').open)fillReport()}catch(e){$('#syncStatus').textContent='Connection error';toast(e.message)}}
 $('#refresh').onclick=refreshCloud;
 $('#retry').onclick=async()=>{try{state=validate(await cloud.retry());$('#editor').close();render();toast('Pending changes confirmed in Google Sheets.')}catch(e){toast(e.message)}};

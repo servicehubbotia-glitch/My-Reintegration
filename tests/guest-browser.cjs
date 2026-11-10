@@ -45,6 +45,7 @@ const {PDFDocument}=require('pdf-lib');
   await anonymous.close();denied=false;await p.reload();await p.waitForFunction(()=>document.body.dataset.journalState==='ready');
   await p.setViewportSize({width:375,height:812});assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await p.screenshot({path:'test-results/private-reader-mobile.png',fullPage:true});assert.deepEqual(errors,[]);
+  await require('./guest-download-browser.cjs')(browser);
   console.log('PASS private reader browser: fragment-only authorization, full history, dated links, historical refresh, week/full downloads, no editing/storage, denied-state clearing, anonymous rejection, mobile');
  }finally{await browser.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});

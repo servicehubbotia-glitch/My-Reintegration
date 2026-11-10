@@ -23,6 +23,7 @@
   return latestDate();
  }
  function clear(message){
+  clearPreparedDownload();
   confirmed=false;readSequence++;
   state=empty();$('#reportText').textContent='';
   $('#reportRange').textContent='';
