@@ -117,7 +117,33 @@ async function mergeBackup(incoming){
 }
 $('#import').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{if(f.size>10*1024*1024)throw Error('Backup exceeds 10 MB.');const next=validate(JSON.parse(await f.text()));if(confirm(`Merge ${next.activities.length} activities and ${next.applications.length} applications into Google Sheets? Existing records and settings will be preserved.`))await mergeBackup(next)}catch(err){toast('Import: '+err.message)}finally{e.target.value=''}};
 function reportText(){const acts=exportRows('activities'),apps=exportRows('applications');let lines=[...(cloud.demo?['DEMONSTRATION — FICTIONAL DATA. NOT A PERSONAL REPORT.','']:[]),reportScope==='all'?'RE-INTEGRATION ACTIVITIES REPORT — ALL RECORDED DATA':'WEEKLY RE-INTEGRATION ACTIVITIES REPORT',exportRange(),...(state.settings.name?[state.settings.name]:[]),'','ACTIVITY LOG'];if(!acts.length)lines.push(reportScope==='all'?'No activities recorded.':'No activities recorded for this week.');for(const r of acts)lines.push('',fmt(r.date,{weekday:'long',day:'numeric',month:'long',year:'numeric'}),r.activity,...(r.category?['Category: '+r.category]:[]),'Outcome: '+(r.outcome||'Not recorded'),'Completed: '+r.completed,'Duration: '+duration(r.minutes),'Mail to report recipient: '+r.mail);lines.push('','TOTAL TIME: '+duration(acts.reduce((s,r)=>s+r.minutes,0)),...(reportScope==='all'?[]:['Weekly goal: '+state.settings.goal+' hours']),'Recorded time includes incomplete activities.','',reportScope==='all'?'APPLICATIONS — ALL RECORDED DATA':'ONGOING APPLICATIONS — APPLIED THIS WEEK');if(!apps.length)lines.push(reportScope==='all'?'No applications recorded.':'No applications recorded for this week.');for(const r of apps)lines.push('',`Date of application: ${fmt(r.date)}`,`Function: ${r.function}`,`Company: ${r.company}`,`Via: ${r.via||'Not recorded'}`,`Conversation: ${r.conversation||'Not recorded'}`,`Interview date: ${r.interview?fmt(r.interview):'Not recorded'}`,`With whom (did you speak): ${r.withWhom||'Not recorded'}`,`Contact person's phone number: ${r.phone||'Not recorded'}`,`Result (accepted/rejected) and reason: ${r.result||'Not recorded'}`);return lines.join('\n')}
-function fillReport(){clearPreparedDownload();const text=reportText();$('#reportTitle').textContent=reportScope==='all'?'All recorded data':'Weekly report';$('#reportScope').value=reportScope;$('#reportRange').textContent=exportRange();$('#reportText').textContent=text;$('#emailTo').value=state.settings.recipient;$('#emailSubject').value=`Re-integration Activities Report – ${exportRange()}`;$('#emailBody').value=`Hello,\n\nPlease find below my re-integration activities report for ${exportRange()}.\n\n${text}\n\nPlease let me know if you need any further information.\n\nKind regards,\n${state.settings.name}`;}
+// Keep access-bearing private links in memory only; never put them into public code, a Sheet, or browser storage.
+let emailPrivateLink='';
+function validPrivateReportLink(value){
+ try{
+  const url=new URL(value);
+  return url.protocol==='https:'&&url.hostname==='script.google.com'&&/^\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/.test(url.pathname)&&!!new URLSearchParams(url.hash.slice(1)).get('access');
+ }catch{return false}
+}
+function prepareShortEmail(){
+ const recipient=($('#emailTo').value||'').trim().toLowerCase();
+ const greeting=recipient==='urszula.czernik@randstadgroep.nl'?'Hi Urszula':'Hello';
+ const sender=(state.settings.name||'Paloma').trim()||'Paloma';
+ const link=emailPrivateLink.trim();
+ $('#emailBody').value=`${greeting},\n\nHere is the link to my updated reintegration activities:\n\n${link||'[Paste your private read-only link above]'}\n\nKind regards,\n${sender}`;
+}
+function fillReport(){
+ clearPreparedDownload();
+ const text=reportText();
+ $('#reportTitle').textContent=reportScope==='all'?'All recorded data':'Weekly report';
+ $('#reportScope').value=reportScope;$('#reportRange').textContent=exportRange();$('#reportText').textContent=text;
+ $('#emailTo').value=state.settings.recipient;$('#emailSubject').value='Weekly Reintegration Update';
+ const createdLink=$('#sharedViewUrl')?.value||'';
+ if(!emailPrivateLink&&validPrivateReportLink(createdLink))emailPrivateLink=createdLink;
+ $('#emailPrivateLink').value=emailPrivateLink;
+ prepareShortEmail();
+}
+$('#emailPrivateLink').addEventListener('input',e=>{emailPrivateLink=e.target.value.trim();prepareShortEmail()});
 function openReport(scope='week'){reportScope=scope;fillReport();$('#reportDialog').showModal()}
 $('#report').onclick=()=>openReport('week');$('#allData').onclick=()=>openReport('all');
 $('#reportScope').onchange=e=>{reportScope=e.target.value==='all'?'all':'week';fillReport()};
@@ -125,7 +151,7 @@ $('#copy').onclick=async()=>{try{await navigator.clipboard.writeText(reportText(
 function csvCell(v){let s=String(v??'');if(/^[\s]*[=+@-]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'}
 function csv(){const headers=['Record type','Date','What activity did you do?','Category','What was the result/outcome of this activity for you?','Result (Completed Yes or No)','Duration (hours and minutes)','Duration (minutes)','Mail to report recipient (Yes or No)','Function','Company','Via','Conversation','Interview date','With whom (did you speak)',"Contact person's phone number",'Result (accepted/rejected) and reason'];const rows=[...(cloud.demo?[['DEMONSTRATION — FICTIONAL DATA. NOT A PERSONAL REPORT.']]:[]),headers,...exportRows('activities').map(r=>['Activity',r.date,r.activity,r.category,r.outcome,r.completed,duration(r.minutes),r.minutes,r.mail]),...exportRows('applications').map(r=>['Application',r.date,'','','','','','','',r.function,r.company,r.via,r.conversation,r.interview,r.withWhom,r.phone,r.result])];rows.push([reportScope==='all'?'Total recorded time':'Weekly total',reportScope==='all'?'':week,'','','','',duration(exportRows('activities').reduce((s,r)=>s+r.minutes,0)),exportRows('activities').reduce((s,r)=>s+r.minutes,0)]);return '\uFEFF'+rows.map(r=>Array.from({length:headers.length},(_,i)=>csvCell(r[i])).join(',')).join('\r\n')}
 $('#csv').onclick=()=>download(csv(),exportFilename()+'.csv','text/csv;charset=utf-8');
-function emailValues(){const to=$('#emailTo');if(!to.value||!to.checkValidity()||/[\r\n]/.test(to.value)){toast('Enter a valid recipient email address.');to.focus();return null}return{to:to.value,subject:$('#emailSubject').value.replace(/[\r\n]/g,' '),body:$('#emailBody').value}}
+function emailValues(){const to=$('#emailTo');if(!to.value||!to.checkValidity()||/[\r\n]/.test(to.value)){toast('Enter a valid recipient email address.');to.focus();return null}if(!validPrivateReportLink(emailPrivateLink)){toast('Paste the existing private read-only link before preparing the email.');$('#emailPrivateLink').focus();return null}return{to:to.value,subject:$('#emailSubject').value.replace(/[\r\n]/g,' '),body:$('#emailBody').value}}
 $('#email').onclick=()=>{const v=emailValues();if(v)location.href=`mailto:${encodeURIComponent(v.to)}?subject=${encodeURIComponent(v.subject)}&body=${encodeURIComponent(v.body)}`};
 $('#eml').onclick=()=>{const v=emailValues();if(!v)return;const b64=s=>btoa(Array.from(new TextEncoder().encode(s),b=>String.fromCharCode(b)).join(''));const body=b64(v.body).match(/.{1,76}/g)?.join('\r\n')||'';download(`To: ${v.to}\r\nSubject: =?UTF-8?B?${b64(v.subject)}?=\r\nX-Unsent: 1\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n${body}\r\n`,exportFilename()+'.eml','message/rfc822')};
 // The PDF contains locally rendered page images. Canvas preserves Unicode without remote fonts.
